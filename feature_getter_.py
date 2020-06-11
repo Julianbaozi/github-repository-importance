@@ -27,10 +27,6 @@ class text_has_numbers(object):
     def __call__(self, driver):
         elements = driver.find_elements(*self.locator)
         if len(elements) == 0:
-            with open('log.txt', 'a') as f:
-                f.write(driver.page_source)
-            return False
-
             return False
         for i in self.indices:
             if not get_numbers(elements[i].text):
@@ -46,8 +42,6 @@ class text_is_different:
     def __call__(self, driver):
         elements = driver.find_elements(*self.locator)
         if len(elements) == 0:
-            with open('log.txt', 'a') as f:
-                f.write(driver.page_source)
             return False
         actual_text = elements[0].text
         return elements if actual_text != self.text else False
