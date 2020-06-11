@@ -1,0 +1,13 @@
+{
+    "lloyd/yajl": {
+        "git": [
+            "https://github.com/lloyd/yajl.git"
+        ],
+        "github:repo": [
+            "https://github.com/lloyd/yajl"
+        ],
+        "github:issue": [
+            "https://github.com/lloyd/yajl"
+        ]
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "Qihoo360/phptrace": {
+        "git": [
+            "https://github.com/Qihoo360/phptrace.git"
+        ],
+        "github:repo": [
+            "https://github.com/Qihoo360/phptrace"
+        ],
+        "github:issue": [
+            "https://github.com/Qihoo360/phptrace"
+        ]
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "raspberrypi/userland": {
+        "git": [
+            "https://github.com/raspberrypi/userland.git"
+        ],
+        "github:repo": [
+            "https://github.com/raspberrypi/userland"
+        ],
+        "github:issue": [
+            "https://github.com/raspberrypi/userland"
+        ]
+    }
+}

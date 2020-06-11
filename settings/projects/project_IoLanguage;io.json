@@ -1,0 +1,13 @@
+{
+    "IoLanguage/io": {
+        "git": [
+            "https://github.com/IoLanguage/io.git"
+        ],
+        "github:repo": [
+            "https://github.com/IoLanguage/io"
+        ],
+        "github:issue": [
+            "https://github.com/IoLanguage/io"
+        ]
+    }
+}

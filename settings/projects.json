@@ -1,0 +1,16 @@
+{
+	"openssl/openssl": 
+	{
+		"git": ["https://github.com/openssl/openssl.git"], 
+		"github:repo": ["https://github.com/openssl/openssl"], 
+		"github:issue": ["https://github.com/openssl/openssl"]
+	},
+
+	"chaoss/grimoirelab": 
+	{
+		"git": ["https://github.com/chaoss/grimoirelab.git"], 
+		"github:repo": ["https://github.com/chaoss/grimoirelab"], 
+		"github:issue": ["https://github.com/chaoss/grimoirelab"]
+	}
+	
+}

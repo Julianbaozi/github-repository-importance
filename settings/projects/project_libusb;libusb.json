@@ -1,0 +1,13 @@
+{
+    "libusb/libusb": {
+        "git": [
+            "https://github.com/libusb/libusb.git"
+        ],
+        "github:repo": [
+            "https://github.com/libusb/libusb"
+        ],
+        "github:issue": [
+            "https://github.com/libusb/libusb"
+        ]
+    }
+}

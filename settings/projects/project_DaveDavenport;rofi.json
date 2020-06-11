@@ -1,0 +1,13 @@
+{
+    "DaveDavenport/rofi": {
+        "git": [
+            "https://github.com/DaveDavenport/rofi.git"
+        ],
+        "github:repo": [
+            "https://github.com/DaveDavenport/rofi"
+        ],
+        "github:issue": [
+            "https://github.com/DaveDavenport/rofi"
+        ]
+    }
+}

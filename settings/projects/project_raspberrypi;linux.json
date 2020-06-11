@@ -1,0 +1,13 @@
+{
+    "raspberrypi/linux": {
+        "git": [
+            "https://github.com/raspberrypi/linux.git"
+        ],
+        "github:repo": [
+            "https://github.com/raspberrypi/linux"
+        ],
+        "github:issue": [
+            "https://github.com/raspberrypi/linux"
+        ]
+    }
+}

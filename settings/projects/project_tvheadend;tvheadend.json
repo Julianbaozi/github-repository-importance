@@ -1,0 +1,13 @@
+{
+    "tvheadend/tvheadend": {
+        "git": [
+            "https://github.com/tvheadend/tvheadend.git"
+        ],
+        "github:repo": [
+            "https://github.com/tvheadend/tvheadend"
+        ],
+        "github:issue": [
+            "https://github.com/tvheadend/tvheadend"
+        ]
+    }
+}

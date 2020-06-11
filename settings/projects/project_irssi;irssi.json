@@ -1,0 +1,13 @@
+{
+    "irssi/irssi": {
+        "git": [
+            "https://github.com/irssi/irssi.git"
+        ],
+        "github:repo": [
+            "https://github.com/irssi/irssi"
+        ],
+        "github:issue": [
+            "https://github.com/irssi/irssi"
+        ]
+    }
+}
