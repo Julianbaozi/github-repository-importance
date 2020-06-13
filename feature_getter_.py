@@ -82,8 +82,8 @@ class FeatureGetter:
                             )
                         break
                 except:
-                    print('Loading timeout. URL: ' + self.browser.current_url, '. Tried ' + str(i + 1) + ' times.')
-
+                    #print('Loading timeout. URL: ' + self.browser.current_url, '. Tried ' + str(i + 1) + ' times.')
+                    pass
         return elements
 
     def _get_page_by_browser(self, endpoint):
@@ -213,10 +213,10 @@ class FeatureGetter:
         if self._get_age():
             self._get_recent_contributors()
         else:
-            result['recent_contributors'] = 0
-            result['recent_commits'] = 0
-            result['recent_added'] = 0
-            result['recent_deleted'] = 0
+            self.result['recent_contributors'] = 0
+            self.result['recent_commits'] = 0
+            self.result['recent_added'] = 0
+            self.result['recent_deleted'] = 0
         self._get_dependents()
 
     @staticmethod

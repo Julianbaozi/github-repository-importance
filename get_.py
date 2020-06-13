@@ -45,11 +45,11 @@ def my_proxy(PROXY_HOST,PROXY_PORT):
 
 def run(owner_repos):
     columns = ['full_name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork',
-               'commits', 'branches', 'releases', 'contributors', 'license', 'description', 'website', 'topics', 'readme',
+               'commits', 'branches', 'releases', 'contributors', 'license', 'description', 'website', 'topics', 
                'labels', 'milestones', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
                'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent',
                'age', 'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
-               'dependent_repositories', 'dependent_packages', 'repositories', 'people', 'followers', 'info']
+               'dependent_repositories', 'dependent_packages', 'repositories', 'people', 'followers', 'info', 'readme']
 
     if IF_NEW:
         df = pd.DataFrame(columns=columns)
@@ -106,5 +106,5 @@ def run(owner_repos):
 if __name__ == '__main__':
     with open('owner_repos.txt') as file:
         owner_repos = file.read().splitlines()
-    run(owner_repos[:10])
+    run(owner_repos[:])
 
