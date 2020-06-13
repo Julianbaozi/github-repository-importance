@@ -1,0 +1,961 @@
+full_name,size,stars,watches,forks,owner_type,if_fork,commits,branches,releases,contributors,license,description,website,topics,readme,labels,milestones,open_issues,closed_issues,open_issues_recent,closed_issues_recent,open_prs,closed_prs,open_prs_recent,closed_prs_recent,age,recent_contributors,recent_commits,recent_added,recent_deleted,dependent_repositories,dependent_packages,repositories,people,followers,info
+julycoding/The-Art-Of-Programming-By-July,27451,19188,1906,7002,User,False,3633,1,0,99,False,本项目曾冲到全球第一，干货集锦见本页面最底部，另完整精致的纸质版《编程之法：面试和算法心得》已在京东/当当上销售,,0,,6,0,45,82,0,0,22,320,2,0,2378,0,0,0,0,0,0,4,,4,
+ggreer/the_silver_searcher,2396,20377,430,1193,User,False,2021,55,49,189,False,"A code-searching tool similar to ack, but faster.",http://geoff.greer.fm/ag/,6,"# The Silver Searcher
+
+A code searching tool similar to `ack`, with a focus on speed.
+
+[![Build Status](https://travis-ci.org/ggreer/the_silver_searcher.svg?branch=master)](https://travis-ci.org/ggreer/the_silver_searcher)
+
+[![Floobits Status](https://floobits.com/ggreer/ag.svg)](https://floobits.com/ggreer/ag/redirect)
+
+[![#ag on Freenode](https://img.shields.io/badge/Freenode-%23ag-brightgreen.svg)](https://webchat.freenode.net/?channels=ag)
+
+Do you know C? Want to improve ag? [I invite you to pair with me](http://geoff.greer.fm/2014/10/13/help-me-get-to-ag-10/).
+
+
+## What's so great about Ag?
+
+* It is an order of magnitude faster than `ack`.
+* It ignores file patterns from your `.gitignore` and `.hgignore`.
+* If there are files in your source repo you don't want to search, just add their patterns to a `.ignore` file. (\*cough\* `*.min.js` \*cough\*)
+* The command name is 33% shorter than `ack`, and all keys are on the home row!
+
+Ag is quite stable now. Most changes are new features, minor bug fixes, or performance improvements. It's much faster than Ack in my benchmarks:
+
+    ack test_blah ~/code/  104.66s user 4.82s system 99% cpu 1:50.03 total
+
+    ag test_blah ~/code/  4.67s user 4.58s system 286% cpu 3.227 total
+
+Ack and Ag found the same results, but Ag was 34x faster (3.2 seconds vs 110 seconds). My `~/code` directory is about 8GB. Thanks to git/hg/ignore, Ag only searched 700MB of that.
+
+There are also [graphs of performance across releases](http://geoff.greer.fm/ag/speed/).
+
+## How is it so fast?
+
+* Ag uses [Pthreads](https://en.wikipedia.org/wiki/POSIX_Threads) to take advantage of multiple CPU cores and search files in parallel.
+* Files are `mmap()`ed instead of read into a buffer.
+* Literal string searching uses [Boyer-Moore strstr](https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string_search_algorithm).
+* Regex searching uses [PCRE's JIT compiler](http://sljit.sourceforge.net/pcre.html) (if Ag is built with PCRE >=8.21).
+* Ag calls `pcre_study()` before executing the same regex on every file.
+* Instead of calling `fnmatch()` on every pattern in your ignore files, non-regex patterns are loaded into arrays and binary searched.
+
+I've written several blog posts showing how I've improved performance. These include how I [added pthreads](http://geoff.greer.fm/2012/09/07/the-silver-searcher-adding-pthreads/), [wrote my own `scandir()`](http://geoff.greer.fm/2012/09/03/profiling-ag-writing-my-own-scandir/), [benchmarked every revision to find performance regressions](http://geoff.greer.fm/2012/08/25/the-silver-searcher-benchmarking-revisions/), and profiled with [gprof](http://geoff.greer.fm/2012/02/08/profiling-with-gprof/) and [Valgrind](http://geoff.greer.fm/2012/01/23/making-programs-faster-profiling/).
+
+
+## Installing
+
+### macOS
+
+    brew install the_silver_searcher
+
+or
+
+    port install the_silver_searcher
+
+
+### Linux
+
+* Ubuntu >= 13.10 (Saucy) or Debian >= 8 (Jessie)
+
+        apt-get install silversearcher-ag
+* Fedora 21 and lower
+
+        yum install the_silver_searcher
+* Fedora 22+
+
+        dnf install the_silver_searcher
+* RHEL7+
+
+        yum install epel-release.noarch the_silver_searcher
+* Gentoo
+
+        emerge -a sys-apps/the_silver_searcher
+* Arch
+
+        pacman -S the_silver_searcher
+
+* Slackware
+
+        sbopkg -i the_silver_searcher
+
+* openSUSE:
+
+        zypper install the_silver_searcher
+
+* CentOS:
+        
+        yum install the_silver_searcher
+
+* SUSE Linux Enterprise: Follow [these simple instructions](https://software.opensuse.org/download.html?project=utilities&package=the_silver_searcher).
+
+
+### BSD
+
+* FreeBSD
+
+        pkg install the_silver_searcher
+* OpenBSD/NetBSD
+
+        pkg_add the_silver_searcher
+
+### Windows
+
+* Win32/64
+
+  Unofficial daily builds are [available](https://github.com/k-takata/the_silver_searcher-win32).
+  
+* Chocolatey
+
+        choco install ag
+* MSYS2
+
+        pacman -S mingw-w64-{i686,x86_64}-ag
+* Cygwin
+
+  Run the relevant [`setup-*.exe`](https://cygwin.com/install.html), and select ""the\_silver\_searcher"" in the ""Utils"" category.
+
+## Building from source
+
+### Building master
+
+1. Install dependencies (Automake, pkg-config, PCRE, LZMA):
+    * macOS:
+
+            brew install automake pkg-config pcre xz
+        or
+
+            port install automake pkgconfig pcre xz
+    * Ubuntu/Debian:
+
+            apt-get install -y automake pkg-config libpcre3-dev zlib1g-dev liblzma-dev
+    * Fedora:
+
+            yum -y install pkgconfig automake gcc zlib-devel pcre-devel xz-devel
+    * CentOS:
+
+            yum -y groupinstall ""Development Tools""
+            yum -y install pcre-devel xz-devel zlib-devel
+    * openSUSE:
+
+            zypper source-install --build-deps-only the_silver_searcher
+
+    * Windows: It's complicated. See [this wiki page](https://github.com/ggreer/the_silver_searcher/wiki/Windows).
+2. Run the build script (which just runs aclocal, automake, etc):
+
+        ./build.sh
+
+   On Windows (inside an msys/MinGW shell):
+
+        make -f Makefile.w32
+3. Make install:
+
+        sudo make install
+
+
+### Building a release tarball
+
+GPG-signed releases are available [here](http://geoff.greer.fm/ag).
+
+Building release tarballs requires the same dependencies, except for automake and pkg-config. Once you've installed the dependencies, just run:
+
+    ./configure
+    make
+    make install
+
+You may need to use `sudo` or run as root for the make install.
+
+
+## Editor Integration
+
+### Vim
+
+You can use Ag with [ack.vim](https://github.com/mileszs/ack.vim) by adding the following line to your `.vimrc`:
+
+    let g:ackprg = 'ag --nogroup --nocolor --column'
+
+or:
+
+    let g:ackprg = 'ag --vimgrep'
+
+Which has the same effect but will report every match on the line.
+
+### Emacs
+
+You can use [ag.el][] as an Emacs front-end to Ag. See also: [helm-ag].
+
+[ag.el]: https://github.com/Wilfred/ag.el
+[helm-ag]: https://github.com/syohex/emacs-helm-ag
+
+### TextMate
+
+TextMate users can use Ag with [my fork](https://github.com/ggreer/AckMate) of the popular AckMate plugin, which lets you use both Ack and Ag for searching. If you already have AckMate you just want to replace Ack with Ag, move or delete `""~/Library/Application Support/TextMate/PlugIns/AckMate.tmplugin/Contents/Resources/ackmate_ack""` and run `ln -s /usr/local/bin/ag ""~/Library/Application Support/TextMate/PlugIns/AckMate.tmplugin/Contents/Resources/ackmate_ack""`
+
+## Other stuff you might like
+
+* [Ack](https://github.com/petdance/ack2) - Better than grep. Without Ack, Ag would not exist.
+* [ack.vim](https://github.com/mileszs/ack.vim)
+* [Exuberant Ctags](http://ctags.sourceforge.net/) - Faster than Ag, but it builds an index beforehand. Good for *really* big codebases.
+* [Git-grep](http://git-scm.com/docs/git-grep) - As fast as Ag but only works on git repos.
+* [ripgrep](https://github.com/BurntSushi/ripgrep)
+* [Sack](https://github.com/sampson-chen/sack) - A utility that wraps Ack and Ag. It removes a lot of repetition from searching and opening matching files.",2,1,354,390,18,8,112,531,12,2,3120,3,3,28,4,0,0,66,,1,
+stedolan/jq,6848,17128,305,1020,User,False,1323,16,11,112,False,Command-line JSON processor,http://stedolan.github.io/jq/,0,"jq
+==
+
+jq is a lightweight and flexible command-line JSON processor.
+
+[![Coverage Status](https://coveralls.io/repos/stedolan/jq/badge.svg?branch=master&service=github)](https://coveralls.io/github/stedolan/jq?branch=master),
+Unix: [![Build Status](https://travis-ci.org/stedolan/jq.svg?branch=master)](https://travis-ci.org/stedolan/jq),
+Windows: [![Windows build status](https://ci.appveyor.com/api/projects/status/mi816811c9e9mx29?svg=true)](https://ci.appveyor.com/project/stedolan/jq)
+
+
+If you want to learn to use jq, read the documentation at
+[https://stedolan.github.io/jq](https://stedolan.github.io/jq).  This
+documentation is generated from the docs/ folder of this repository.
+You can also try it online at [jqplay.org](https://jqplay.org).
+
+If you want to hack on jq, feel free, but be warned that its internals
+are not well-documented at the moment. Bring a hard hat and a
+shovel.  Also, read the wiki: https://github.com/stedolan/jq/wiki, where
+you will find cookbooks, discussion of advanced topics, internals,
+release engineering, and more.
+
+Source tarball and built executable releases can be found on the
+homepage and on the github release page, https://github.com/stedolan/jq/releases
+
+If you're building directly from the latest git, you'll need flex,
+bison (3.0 or newer), libtool, make, automake, and autoconf installed.
+To get regexp support you'll also need to install Oniguruma or clone it as a
+git submodule as per the instructions below.
+(note that jq's tests require regexp support to pass).  To build, run:
+
+    git submodule update --init # if building from git to get oniguruma
+    autoreconf -fi              # if building from git
+    ./configure --with-oniguruma=builtin
+    make -j8
+    make check
+
+To build without bison or flex, add `--disable-maintainer-mode` to the
+./configure invocation:
+
+    ./configure --with-oniguruma=builtin --disable-maintainer-mode
+
+(Developers must not use `--disable-maintainer-mode`, not when making
+changes to the jq parser and/or lexer.)
+
+To build a statically linked version of jq, run:
+
+    make LDFLAGS=-all-static
+
+After make finishes, you'll be able to use `./jq`.  You can also
+install it using:
+
+    sudo make install
+
+If you're not using the latest git version but instead building a
+released tarball (available on the website), then you won't need to
+run `autoreconf` (and shouldn't), and you won't need flex or bison.
+
+To cross-compile for OS X and Windows, see docs/Rakefile's build task
+and scripts/crosscompile.  You'll need a cross-compilation environment,
+such as Mingw for cross-compiling for Windows.
+
+Cross-compilation requires a clean workspace, then:
+
+    # git clean ...
+    autoreconf -i
+    ./configure
+    make distclean
+    scripts/crosscompile <name-of-build> <configure-options>
+
+Use the `--host=` and `--target=` ./configure options to select a
+cross-compilation environment.  See also 
+[""Cross compilation""](https://github.com/stedolan/jq/wiki/Cross-compilation) on
+the wiki.
+
+Send questions to https://stackoverflow.com/questions/tagged/jq or to the #jq channel (http://irc.lc/freenode/%23jq/) on Freenode (https://webchat.freenode.net/).",34,5,499,1169,60,22,89,385,19,12,2889,7,13,69,57,0,0,45,,575,
+git/git,141126,32929,2190,19258,Organization,False,59611,5,772,1373,False,Git Source Code Mirror - This is a publish-only repository and all pull requests are ignored. Please follow Documentation/SubmittingPatches procedure for any of your improvements.,,2,"[![Build status](https://github.com/git/git/workflows/CI/PR/badge.svg)](https://github.com/git/git/actions?query=branch%3Amaster+event%3Apush)
+
+Git - fast, scalable, distributed revision control system
+=========================================================
+
+Git is a fast, scalable, distributed revision control system with an
+unusually rich command set that provides both high-level operations
+and full access to internals.
+
+Git is an Open Source project covered by the GNU General Public
+License version 2 (some parts of it are under different licenses,
+compatible with the GPLv2). It was originally written by Linus
+Torvalds with help of a group of hackers around the net.
+
+Please read the file [INSTALL][] for installation instructions.
+
+Many Git online resources are accessible from <https://git-scm.com/>
+including full documentation and Git related tools.
+
+See [Documentation/gittutorial.txt][] to get started, then see
+[Documentation/giteveryday.txt][] for a useful minimum set of commands, and
+`Documentation/git-<commandname>.txt` for documentation of each command.
+If git has been correctly installed, then the tutorial can also be
+read with `man gittutorial` or `git help tutorial`, and the
+documentation of each command with `man git-<commandname>` or `git help
+<commandname>`.
+
+CVS users may also want to read [Documentation/gitcvs-migration.txt][]
+(`man gitcvs-migration` or `git help cvs-migration` if git is
+installed).
+
+The user discussion and development of Git take place on the Git
+mailing list -- everyone is welcome to post bug reports, feature
+requests, comments and patches to git@vger.kernel.org (read
+[Documentation/SubmittingPatches][] for instructions on patch submission).
+To subscribe to the list, send an email with just ""subscribe git"" in
+the body to majordomo@vger.kernel.org. The mailing list archives are
+available at <https://lore.kernel.org/git/>,
+<http://marc.info/?l=git> and other archival sites.
+
+Issues which are security relevant should be disclosed privately to
+the Git Security mailing list <git-security@googlegroups.com>.
+
+The maintainer frequently sends the ""What's cooking"" reports that
+list the current status of various development topics to the mailing
+list.  The discussion following them give a good reference for
+project status, development direction and remaining tasks.
+
+The name ""git"" was given by Linus Torvalds when he wrote the very
+first version. He described the tool as ""the stupid content tracker""
+and the name as (depending on your mood):
+
+ - random three-letter combination that is pronounceable, and not
+   actually used by any common UNIX command.  The fact that it is a
+   mispronunciation of ""get"" may or may not be relevant.
+ - stupid. contemptible and despicable. simple. Take your pick from the
+   dictionary of slang.
+ - ""global information tracker"": you're in a good mood, and it actually
+   works for you. Angels sing, and a light suddenly fills the room.
+ - ""goddamn idiotic truckload of sh*t"": when it breaks
+
+[INSTALL]: INSTALL
+[Documentation/gittutorial.txt]: Documentation/gittutorial.txt
+[Documentation/giteveryday.txt]: Documentation/giteveryday.txt
+[Documentation/gitcvs-migration.txt]: Documentation/gitcvs-migration.txt
+[Documentation/SubmittingPatches]: Documentation/SubmittingPatches",4,0,,,,,32,681,25,81,5542,33,853,84103,63199,0,0,7,17,,
+bilibili/ijkplayer,8034,26693,1218,6964,Organization,False,2584,6,78,40,False,"Android/iOS video player based on FFmpeg n3.4, with MediaCodec, VideoToolbox support.",,6,"# ijkplayer
+
+ Platform | Build Status
+ -------- | ------------
+ Android | [![Build Status](https://travis-ci.org/Bilibili/ci-ijk-ffmpeg-android.svg?branch=master)](https://travis-ci.org/Bilibili/ci-ijk-ffmpeg-android)
+ iOS | [![Build Status](https://travis-ci.org/Bilibili/ci-ijk-ffmpeg-ios.svg?branch=master)](https://travis-ci.org/Bilibili/ci-ijk-ffmpeg-ios)
+
+Video player based on [ffplay](http://ffmpeg.org)
+
+### Download
+
+- Android:
+ - Gradle
+```
+# required
+allprojects {
+    repositories {
+        jcenter()
+    }
+}
+
+dependencies {
+    # required, enough for most devices.
+    compile 'tv.danmaku.ijk.media:ijkplayer-java:0.8.8'
+    compile 'tv.danmaku.ijk.media:ijkplayer-armv7a:0.8.8'
+
+    # Other ABIs: optional
+    compile 'tv.danmaku.ijk.media:ijkplayer-armv5:0.8.8'
+    compile 'tv.danmaku.ijk.media:ijkplayer-arm64:0.8.8'
+    compile 'tv.danmaku.ijk.media:ijkplayer-x86:0.8.8'
+    compile 'tv.danmaku.ijk.media:ijkplayer-x86_64:0.8.8'
+
+    # ExoPlayer as IMediaPlayer: optional, experimental
+    compile 'tv.danmaku.ijk.media:ijkplayer-exo:0.8.8'
+}
+```
+- iOS
+ - in coming...
+
+### My Build Environment
+- Common
+ - Mac OS X 10.11.5
+- Android
+ - [NDK r10e](http://developer.android.com/tools/sdk/ndk/index.html)
+ - Android Studio 2.1.3
+ - Gradle 2.14.1
+- iOS
+ - Xcode 7.3 (7D175)
+- [HomeBrew](http://brew.sh)
+ - ruby -e ""$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)""
+ - brew install git
+
+### Latest Changes
+- [NEWS.md](NEWS.md)
+
+### Features
+- Common
+ - remove rarely used ffmpeg components to reduce binary size [config/module-lite.sh](config/module-lite.sh)
+ - workaround for some buggy online video.
+- Android
+ - platform: API 9~23
+ - cpu: ARMv7a, ARM64v8a, x86 (ARMv5 is not tested on real devices)
+ - api: [MediaPlayer-like](android/ijkplayer/ijkplayer-java/src/main/java/tv/danmaku/ijk/media/player/IMediaPlayer.java)
+ - video-output: NativeWindow, OpenGL ES 2.0
+ - audio-output: AudioTrack, OpenSL ES
+ - hw-decoder: MediaCodec (API 16+, Android 4.1+)
+ - alternative-backend: android.media.MediaPlayer, ExoPlayer
+- iOS
+ - platform: iOS 7.0~10.2.x
+ - cpu: armv7, arm64, i386, x86_64, (armv7s is obselete)
+ - api: [MediaPlayer.framework-like](ios/IJKMediaPlayer/IJKMediaPlayer/IJKMediaPlayback.h)
+ - video-output: OpenGL ES 2.0
+ - audio-output: AudioQueue, AudioUnit
+ - hw-decoder: VideoToolbox (iOS 8+)
+ - alternative-backend: AVFoundation.Framework.AVPlayer, MediaPlayer.Framework.MPMoviePlayerControlelr (obselete since iOS 8)
+
+### NOT-ON-PLAN
+- obsolete platforms (Android: API-8 and below; iOS: pre-6.0)
+- obsolete cpu: ARMv5, ARMv6, MIPS (I don't even have these types of devices…)
+- native subtitle render
+- avfilter support
+
+### Before Build
+```
+# install homebrew, git, yasm
+ruby -e ""$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)""
+brew install git
+brew install yasm
+
+# add these lines to your ~/.bash_profile or ~/.profile
+# export ANDROID_SDK=<your sdk path>
+# export ANDROID_NDK=<your ndk path>
+
+# on Cygwin (unmaintained)
+# install git, make, yasm
+```
+
+- If you prefer more codec/format
+```
+cd config
+rm module.sh
+ln -s module-default.sh module.sh
+cd android/contrib
+# cd ios
+sh compile-ffmpeg.sh clean
+```
+
+- If you prefer less codec/format for smaller binary size (include hevc function)
+```
+cd config
+rm module.sh
+ln -s module-lite-hevc.sh module.sh
+cd android/contrib
+# cd ios
+sh compile-ffmpeg.sh clean
+```
+
+- If you prefer less codec/format for smaller binary size (by default)
+```
+cd config
+rm module.sh
+ln -s module-lite.sh module.sh
+cd android/contrib
+# cd ios
+sh compile-ffmpeg.sh clean
+```
+
+- For Ubuntu/Debian users.
+```
+# choose [No] to use bash
+sudo dpkg-reconfigure dash
+```
+
+- If you'd like to share your config, pull request is welcome.
+
+### Build Android
+```
+git clone https://github.com/Bilibili/ijkplayer.git ijkplayer-android
+cd ijkplayer-android
+git checkout -B latest k0.8.8
+
+./init-android.sh
+
+cd android/contrib
+./compile-ffmpeg.sh clean
+./compile-ffmpeg.sh all
+
+cd ..
+./compile-ijk.sh all
+
+# Android Studio:
+#     Open an existing Android Studio project
+#     Select android/ijkplayer/ and import
+#
+#     define ext block in your root build.gradle
+#     ext {
+#       compileSdkVersion = 23       // depending on your sdk version
+#       buildToolsVersion = ""23.0.0"" // depending on your build tools version
+#
+#       targetSdkVersion = 23        // depending on your sdk version
+#     }
+#
+# If you want to enable debugging ijkplayer(native modules) on Android Studio 2.2+: (experimental)
+#     sh android/patch-debugging-with-lldb.sh armv7a
+#     Install Android Studio 2.2(+)
+#     Preference -> Android SDK -> SDK Tools
+#     Select (LLDB, NDK, Android SDK Build-tools,Cmake) and install
+#     Open an existing Android Studio project
+#     Select android/ijkplayer
+#     Sync Project with Gradle Files
+#     Run -> Edit Configurations -> Debugger -> Symbol Directories
+#     Add ""ijkplayer-armv7a/.externalNativeBuild/ndkBuild/release/obj/local/armeabi-v7a"" to Symbol Directories
+#     Run -> Debug 'ijkplayer-example'
+#     if you want to reverse patches:
+#     sh patch-debugging-with-lldb.sh reverse armv7a
+#
+# Eclipse: (obselete)
+#     File -> New -> Project -> Android Project from Existing Code
+#     Select android/ and import all project
+#     Import appcompat-v7
+#     Import preference-v7
+#
+# Gradle
+#     cd ijkplayer
+#     gradle
+
+```
+
+
+### Build iOS
+```
+git clone https://github.com/Bilibili/ijkplayer.git ijkplayer-ios
+cd ijkplayer-ios
+git checkout -B latest k0.8.8
+
+./init-ios.sh
+
+cd ios
+./compile-ffmpeg.sh clean
+./compile-ffmpeg.sh all
+
+# Demo
+#     open ios/IJKMediaDemo/IJKMediaDemo.xcodeproj with Xcode
+# 
+# Import into Your own Application
+#     Select your project in Xcode.
+#     File -> Add Files to ... -> Select ios/IJKMediaPlayer/IJKMediaPlayer.xcodeproj
+#     Select your Application's target.
+#     Build Phases -> Target Dependencies -> Select IJKMediaFramework
+#     Build Phases -> Link Binary with Libraries -> Add:
+#         IJKMediaFramework.framework
+#
+#         AudioToolbox.framework
+#         AVFoundation.framework
+#         CoreGraphics.framework
+#         CoreMedia.framework
+#         CoreVideo.framework
+#         libbz2.tbd
+#         libz.tbd
+#         MediaPlayer.framework
+#         MobileCoreServices.framework
+#         OpenGLES.framework
+#         QuartzCore.framework
+#         UIKit.framework
+#         VideoToolbox.framework
+#
+#         ... (Maybe something else, if you get any link error)
+# 
+```
+
+
+### Support (支持) ###
+- Please do not send e-mail to me. Public technical discussion on github is preferred.
+- 请尽量在 github 上公开讨论[技术问题](https://github.com/bilibili/ijkplayer/issues)，不要以邮件方式私下询问，恕不一一回复。
+
+
+### License
+
+```
+Copyright (c) 2017 Bilibili
+Licensed under LGPLv2.1 or later
+```
+
+ijkplayer required features are based on or derives from projects below:
+- LGPL
+  - [FFmpeg](http://git.videolan.org/?p=ffmpeg.git)
+  - [libVLC](http://git.videolan.org/?p=vlc.git)
+  - [kxmovie](https://github.com/kolyvan/kxmovie)
+  - [soundtouch](http://www.surina.net/soundtouch/sourcecode.html)
+- zlib license
+  - [SDL](http://www.libsdl.org)
+- BSD-style license
+  - [libyuv](https://code.google.com/p/libyuv/)
+- ISC license
+  - [libyuv/source/x86inc.asm](https://code.google.com/p/libyuv/source/browse/trunk/source/x86inc.asm)
+
+android/ijkplayer-exo is based on or derives from projects below:
+- Apache License 2.0
+  - [ExoPlayer](https://github.com/google/ExoPlayer)
+
+android/example is based on or derives from projects below:
+- GPL
+  - [android-ndk-profiler](https://github.com/richq/android-ndk-profiler) (not included by default)
+
+ios/IJKMediaDemo is based on or derives from projects below:
+- Unknown license
+  - [iOS7-BarcodeScanner](https://github.com/jpwiddy/iOS7-BarcodeScanner)
+
+ijkplayer's build scripts are based on or derives from projects below:
+- [gas-preprocessor](http://git.libav.org/?p=gas-preprocessor.git)
+- [VideoLAN](http://git.videolan.org)
+- [yixia/FFmpeg-Android](https://github.com/yixia/FFmpeg-Android)
+- [kewlbear/FFmpeg-iOS-build-script](https://github.com/kewlbear/FFmpeg-iOS-build-script) 
+
+### Commercial Use
+ijkplayer is licensed under LGPLv2.1 or later, so itself is free for commercial use under LGPLv2.1 or later
+
+But ijkplayer is also based on other different projects under various licenses, which I have no idea whether they are compatible to each other or to your product.
+
+[IANAL](https://en.wikipedia.org/wiki/IANAL), you should always ask your lawyer for these stuffs before use it in your product.",27,0,2436,2418,97,20,49,140,2,0,2567,0,0,0,0,0,0,58,25,,
+memcached/memcached,8496,10155,737,2796,Organization,False,1697,5,96,156,False,memcached development tree,https://memcached.org,0,"# Memcached
+
+Memcached is a high performance multithreaded event-based key/value cache
+store intended to be used in a distributed system.
+
+See: https://memcached.org/about
+
+A fun story explaining usage: https://memcached.org/tutorial
+
+If you're having trouble, try the wiki: https://memcached.org/wiki
+
+If you're trying to troubleshoot odd behavior or timeouts, see:
+https://memcached.org/timeouts
+
+https://memcached.org/ is a good resource in general. Please use the mailing
+list to ask questions, github issues aren't seen by everyone!
+
+## Dependencies
+
+* libevent, https://www.monkey.org/~provos/libevent/ (libevent-dev)
+* libseccomp, (optional, experimental, linux) - enables process restrictions for
+  better security. Tested only on x86-64 architectures.
+* openssl, (optional) - enables TLS support. need relatively up to date
+  version.
+
+## Environment
+
+Be warned that the -k (mlockall) option to memcached might be
+dangerous when using a large cache.  Just make sure the memcached machines
+don't swap.  memcached does non-blocking network I/O, but not disk.  (it
+should never go to disk, or you've lost the whole point of it)
+
+## Build status
+
+See https://build.memcached.org/ for multi-platform regression testing status.
+
+## Bug reports
+
+Feel free to use the issue tracker on github.
+
+**If you are reporting a security bug** please contact a maintainer privately.
+We follow responsible disclosure: we handle reports privately, prepare a
+patch, allow notifications to vendor lists. Then we push a fix release and your
+bug can be posted publicly with credit in our release notes and commit
+history.
+
+## Website
+
+* https://www.memcached.org
+
+## Contributing
+
+See https://github.com/memcached/memcached/wiki/DevelopmentRepos",9,1,36,277,13,32,10,362,7,43,6228,11,88,2864,1405,0,0,5,5,,
+numpy/numpy,80836,13969,513,4611,Organization,False,23203,23,172,931,False,The fundamental package for scientific computing with Python.,https://www.numpy.org/,2,"# <img alt=""NumPy"" src=""https://cdn.rawgit.com/numpy/numpy/master/branding/icons/numpylogo.svg"" height=""60"">
+
+[![Travis](https://img.shields.io/travis/numpy/numpy/master.svg?label=Travis%20CI)](
+    https://travis-ci.org/numpy/numpy)
+[![Azure](https://dev.azure.com/numpy/numpy/_apis/build/status/azure-pipeline%20numpy.numpy)](
+    https://dev.azure.com/numpy/numpy/_build/latest?definitionId=5)
+[![codecov](https://codecov.io/gh/numpy/numpy/branch/master/graph/badge.svg)](
+    https://codecov.io/gh/numpy/numpy)
+
+NumPy is the fundamental package needed for scientific computing with Python.
+
+- **Website:** https://www.numpy.org
+- **Documentation:** https://numpy.org/doc
+- **Mailing list:** https://mail.python.org/mailman/listinfo/numpy-discussion
+- **Source code:** https://github.com/numpy/numpy
+- **Contributing:** https://www.numpy.org/devdocs/dev/index.html
+- **Bug reports:** https://github.com/numpy/numpy/issues
+- **Report a security vulnerability:** https://tidelift.com/docs/security
+
+It provides:
+
+- a powerful N-dimensional array object
+- sophisticated (broadcasting) functions
+- tools for integrating C/C++ and Fortran code
+- useful linear algebra, Fourier transform, and random number capabilities
+
+Testing:
+
+- NumPy versions &ge; 1.15 require `pytest`
+- NumPy versions &lt; 1.15 require `nose`
+
+Tests can then be run after installation with:
+
+    python -c 'import numpy; numpy.test()'
+
+
+Call for Contributions
+----------------------
+
+NumPy appreciates help from a wide range of different backgrounds.
+Work such as high level documentation or website improvements are valuable
+and we would like to grow our team with people filling these roles.
+Small improvements or fixes are always appreciated and issues labeled as easy
+may be a good starting point.
+If you are considering larger contributions outside the traditional coding work,
+please contact us through the mailing list.
+
+
+[![Powered by NumFOCUS](https://img.shields.io/badge/powered%20by-NumFOCUS-orange.svg?style=flat&colorA=E1523D&colorB=007D8A)](https://numfocus.org)",82,3,1929,6670,322,353,257,7713,100,699,6753,33,668,36593,21682,394093,23589,19,28,,
+vurtun/nuklear,12127,13220,576,1081,User,False,1712,1,0,100,False,A single-header ANSI C gui library,,6,,9,0,208,451,0,0,31,249,0,0,1930,0,0,0,0,0,0,4,,510,
+irungentoo/toxcore,10353,8601,598,1246,User,False,3771,2,1,155,False,The future of online communications.,https://tox.chat/,2,"![Project Tox](https://raw.github.com/irungentoo/toxcore/master/other/tox.png ""Project Tox"")
+***
+
+With the rise of government surveillance programs, Tox, a FOSS initiative, aims to be an easy to use, all-in-one communication platform that ensures full privacy and secure message delivery.<br /> <br />
+
+[**Website**](https://tox.chat) **|** [**Wiki**](https://wiki.tox.chat/) **|** [**Blog**](https://blog.tox.chat/) **|** [**FAQ**](https://wiki.tox.chat/doku.php?id=users:faq) **|** [**Binaries/Downloads**](https://wiki.tox.chat/Binaries) **|** [**Clients**](https://wiki.tox.chat/doku.php?id=clients) **|** [**Compiling**](/INSTALL.md)
+
+**IRC Channels:** [#tox@freenode](https://webchat.freenode.net/?channels=tox), [#tox-dev@freenode](https://webchat.freenode.net/?channels=tox-dev)
+
+
+## The Complex Stuff:
+### UDP vs. TCP
+Tox must use UDP simply because [hole punching](https://en.wikipedia.org/wiki/UDP_hole_punching) with TCP is not as reliable.
+However, Tox does use [TCP relays](/docs/TCP_Network.txt) as a fallback if it encounters a firewall that prevents UDP hole punching.
+
+### Connecting & Communicating
+Every peer is represented as a [byte string](https://en.wikipedia.org/wiki/String_(computer_science)) (the public key [Tox ID] of the peer). By using torrent-style DHT, peers can find the IP of other peers by using their Tox ID. Once the IP is obtained, peers can initiate a [secure](/docs/updates/Crypto.md) connection with each other. Once the connection is made, peers can exchange messages, send files, start video chats, etc. using encrypted communications.
+
+
+**Current build status:** [![Build Status](https://travis-ci.org/irungentoo/toxcore.png?branch=master)](https://travis-ci.org/irungentoo/toxcore)
+
+
+## Q&A:
+
+### What are your goals with Tox?
+
+We want Tox to be as simple as possible while remaining as secure as possible.
+
+### Why are you doing this? There are already a bunch of free Skype alternatives.
+The goal of this project is to create a configuration-free P2P Skype replacement. “Configuration-free” means that the user will simply have to open the program and will be capable of adding people and communicating with them without having to set up an account. There are many so-called Skype replacements, but all of them are either hard to configure for the normal user or suffer from being way too centralized.
+
+## TODO:
+- [TODO](/docs/TODO.md)
+
+
+## Documentation:
+
+- [Compiling](/INSTALL.md)
+- [DHT Protocol](/docs/updates/DHT.md)<br />
+- [Crypto](/docs/updates/Crypto.md)<br />",25,2,94,551,0,0,7,931,0,1,2546,0,0,0,0,0,0,13,,438,
+git-up/GitUp,50051,9058,175,617,Organization,False,378,5,48,40,False,The Git interface you've been missing all your life has finally arrived.,http://gitup.co,0,"[![Build Status](https://travis-ci.org/git-up/GitUp.svg?branch=master)](https://travis-ci.org/git-up/GitUp)
+
+GitUp
+=====
+
+**Work quickly, safely, and without headaches. The Git interface you've been missing all your life has finally arrived.**
+
+<p align=""center"">
+<img src=""https://i.imgur.com/JuQIxJu.png"" width=""50%"" height=""50%""><img src=""https://i.imgur.com/9rgXktz.png"" width=""50%"" height=""50%"">
+</p>
+
+Git recently celebrated its 10 years anniversary, but most engineers are still confused by its intricacy (3 of the [top 5 questions of all time](http://stackoverflow.com/questions?sort=votes) on Stack Overflow are Git related). Since Git turns even simple actions into mystifying commands (“git add” to stage versus “git reset HEAD” to unstage anyone?), it’s no surprise users waste time, get frustrated, distract the rest of their team for help, or worse, screw up their repo!
+
+GitUp is a bet to invent a new Git interaction model that lets engineers of all levels work quickly, safely, and without headaches. It's unlike any other Git client out there from the way it’s built (it interacts directly with the Git database on disk), to the way it works (you manipulate the repository graph instead of manipulating commits).
+
+With GitUp, you get a truly efficient Git client for Mac:
+- A **live and interactive repo graph** (edit, reorder, fixup, merge commits…),
+- **Unlimited undo / redo** of almost all operations (even rebases and merges),
+- Time Machine like **snapshots for 1-click rollbacks** to previous repo states,
+- Features that don’t even exist natively in Git like a **visual commit splitter** or a **unified reflog browser**,
+- **Instant search across the entire repo** including diff contents, 
+- A **ridiculously fast UI**, often faster than the command line.
+
+*GitUp was created by [@swisspol](https://github.com/swisspol) in late 2014 as a bet to reinvent the way developers interact with Git. After several months of work, it was made available in pre-release early 2015 and reached the [top of Hacker News](https://news.ycombinator.com/item?id=9653978) along with being [featured by Product Hunt](http://www.producthunt.com/tech/gitup-1) and [Daring Fireball](http://daringfireball.net/linked/2015/06/04/gitup). 30,000 lines of code later, GitUp reached 1.0 mid-August 2015 and was released open source as a gift to the developer community.*
+
+Getting Started
+===============
+
+**Learn all about GitUp and download the latest release from http://gitup.co.**
+
+**Read the [docs](https://github.com/git-up/GitUp/wiki) and use [GitHub Issues](https://github.com/git-up/GitUp/issues) for support & feedback.**
+
+Releases notes are available at https://github.com/git-up/GitUp/releases. Builds tagged with a `v` (e.g. `v1.2.3`) are released on the ""Stable"" channel, while builds tagged with a `b` (e.g. `b1234`) are only released on the ""Continuous"" channel. You can change the update channel used by GitUp in the app preferences.
+
+To build GitUp yourself, simply run the command `git clone --recursive https://github.com/git-up/GitUp.git` in Terminal, then open the `GitUp/GitUp.xcodeproj` Xcode project and hit Run.
+
+**IMPORTANT:** If you do not have an Apple ID with a developer account for code signing Mac apps, the build  will fail with a code signing error. Simply delete the ""Code Signing Identity"" build setting of the ""Application"" target to work around the issue:
+
+<p align=""center"">
+<img src=""http://i.imgur.com/dWpJExk.png"">
+</p>
+
+**Alternatively**, if you do have a developer account, you can create the file ""Xcode-Configurations/DEVELOPMENT_TEAM.xcconfig"" with the following build setting as its content:
+> DEVELOPMENT_TEAM = [Your TeamID]
+
+For a more detailed description of this, you can have a look at the comments at the end of the file ""Xcode-Configurations/Base.xcconfig"". 
+
+GitUpKit
+========
+
+**GitUp is built as a thin layer on top of a reusable generic Git toolkit called ""GitUpKit"". This means that you can use that same GitUpKit framework to build your very own Git UI!**
+
+*GitUpKit has a very different goal than [ObjectiveGit](https://github.com/libgit2/objective-git). Instead of offering extensive raw bindings to [libgit2](https://github.com/libgit2/libgit2), GitUpKit only uses a minimal subset of libgit2 and reimplements everything else on top of it (it has its own ""rebase engine"" for instance).
+This allows it to expose a very tight and consistent API, that completely follows Obj-C conventions and hides away the libgit2 complexity and sometimes inconsistencies. GitUpKit adds on top of that a number of exclusive and powerful features, from undo/redo and Time Machine like snapshots, to entire drop-in UI components.*
+
+Architecture
+------------
+
+The GitUpKit source code is organized as 2 independent layers communicating only through the use of public APIs:
+
+**Base Layer (depends on Foundation only and is compatible with OS X and iOS)**
+- `Core/`: wrapper around the required minimal functionality of [libgit2](https://github.com/libgit2/libgit2), on top of which is then implemented all the Git functionality required by GitUp (note that GitUp uses a [slightly customized fork](https://github.com/git-up/libgit2/tree/gitup) of libgit2)
+- `Extensions/`: categories on the `Core` classes to add convenience features implemented only using the public APIs
+
+**UI Layer (depends on AppKit and is compatible with OS X only)**
+- `Interface/`: low-level view classes e.g. `GIGraphView` to render the GitUp Map view
+- `Utilities/`: interface utility classes e.g. the base view controller class `GIViewController`
+- `Components/`: reusable single-view view controllers e.g. `GIDiffContentsViewController` to render a diff
+- `Views/`: high-level reusable multi-views view controllers e.g. `GIAdvancedCommitViewController` to implement the entire GitUp Advanced Commit view
+
+**IMPORTANT**: If the preprocessor constant `DEBUG` is defined to a non-zero value when building GitUpKit (this is the default when building in ""Debug"" configuration), a number of extra consistency checks are enabled at run time as well as extra logging. Be aware that this overhead can significantly affect performance.
+
+GitUpKit API
+------------
+
+Using the GitUpKit API should be pretty straightforward since it is organized by functionality (e.g. repository, branches, commits, interface components, etc...) and a best effort has been made to name functions clearly.
+
+Regarding the ""Core"" APIs, the best way to learn them is to peruse the associated unit tests - for instance see [the branch tests](GitUpKit/Core/GCBranch-Tests.m) for the branch API.
+
+Here is some sample code to get you started (error handling is left as an exercise to the reader):
+
+**Opening and browsing a repository:**
+```objc
+// Open repo
+GCRepository* repo = [[GCRepository alloc] initWithExistingLocalRepository:<PATH> error:NULL];
+
+// Make sure repo is clean
+assert([repo checkClean:kGCCleanCheckOption_IgnoreUntrackedFiles error:NULL]);
+
+// List all branches
+NSArray* branches = [repo listAllBranches:NULL];
+NSLog(@""%@"", branches);
+
+// Lookup HEAD
+GCLocalBranch* headBranch;  // This would be nil if the HEAD is detached
+GCCommit* headCommit;
+[repo lookupHEADCurrentCommit:&headCommit branch:&headBranch error:NULL];
+NSLog(@""%@ = %@"", headBranch, headCommit);
+
+// Load the *entire* repo history in memory for fast access, including all commits, branches and tags
+GCHistory* history = [repo loadHistoryUsingSorting:kGCHistorySorting_ReverseChronological error:NULL];
+assert(history);
+NSLog(@""%lu commits total"", history.allCommits.count);
+NSLog(@""%@\n%@"", history.rootCommits, history.leafCommits);
+```
+
+**Modifying a repository:**
+```objc
+// Take a snapshot of the repo
+GCSnapshot* snapshot = [repo takeSnapshot:NULL];
+
+// Create a new branch and check it out
+GCLocalBranch* newBranch = [repo createLocalBranchFromCommit:headCommit withName:@""temp"" force:NO error:NULL];
+NSLog(@""%@"", newBranch);
+assert([repo checkoutLocalBranch:newBranch options:0 error:NULL]);
+
+// Add a file to the index
+[[NSData data] writeToFile:[repo.workingDirectoryPath stringByAppendingPathComponent:@""empty.data""] atomically:YES];
+assert([repo addFileToIndex:@""empty.data"" error:NULL]);
+
+// Check index status
+GCDiff* diff = [repo diffRepositoryIndexWithHEAD:nil options:0 maxInterHunkLines:0 maxContextLines:0 error:NULL];
+assert(diff.deltas.count == 1);
+NSLog(@""%@"", diff);
+
+// Create a commit
+GCCommit* newCommit = [repo createCommitFromHEADWithMessage:@""Added file"" error:NULL];
+assert(newCommit);
+NSLog(@""%@"", newCommit);
+
+// Restore repo to saved snapshot before topic branch and commit were created
+BOOL success = [repo restoreSnapshot:snapshot withOptions:kGCSnapshotOption_IncludeAll reflogMessage:@""Rolled back"" didUpdateReferences:NULL error:NULL];
+assert(success);
+  
+// Make sure topic branch is gone
+assert([repo findLocalBranchWithName:@""temp"" error:NULL] == nil);
+  
+// Update workdir and index to match HEAD
+assert([repo resetToHEAD:kGCResetMode_Hard error:NULL]);
+```
+
+Complete Example #1: GitDown
+----------------------------
+
+[GitDown](Examples/GitDown) is a very basic app that prompts the user for a repo and displays an interactive and live-updating list of its stashes (all with ~20 lines of code in `-[AppDelegate applicationDidFinishLaunching:]`):
+
+<p align=""center"">
+<img src=""http://i.imgur.com/ZfxM7su.png"">
+</p>
+
+Through GitUpKit, this basic app also gets for free unlimited undo/redo, unified and side-by-side diffs, text selection and copy, keyboard shortcuts, etc...
+
+This source code also demonstrates how to use some other GitUpKit view controllers as well as building a customized one.
+
+Complete Example #2: GitDiff
+----------------------------
+
+[GitDiff](Examples/GitDiff) demonstrates how to create a view controller that displays a live updating diff between `HEAD` and the workdir à la `git diff HEAD`:
+
+<p align=""center"">
+<img src=""http://i.imgur.com/29hxDcJ.png"">
+</p>
+
+Complete Example #3: GitY
+-------------------------
+
+[GitY](Examples/GitY) is a [GitX](http://gitx.frim.nl/) clone built using GitUpKit and less than 200 lines of code:
+
+<p align=""center"">
+<img src=""http://i.imgur.com/6cuPcT4.png"">
+</p>
+
+Complete Example #4: iGit
+-------------------------
+
+[iGit](Examples/iGit) is a test iOS app that simply uses GitUpKit to clone a GitHub repo and perform a commit.
+
+Contributing
+============
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Credits
+=======
+
+- [@swisspol](https://github.com/swisspol): concept and code
+- [@wwayneee](https://github.com/wwayneee): UI design
+- [@jayeb](https://github.com/jayeb): website
+
+*Also a big thanks to the fine [libgit2](https://libgit2.github.com/) contributors without whom GitUp would have never existed!*
+
+License
+=======
+
+GitUp is copyright 2015-2018 Pierre-Olivier Latour and available under [GPL v3 license](http://www.gnu.org/licenses/gpl-3.0.txt). See the [LICENSE](LICENSE) file in the project for more information.
+
+**IMPORTANT:** GitUp includes some other open-source projects and such projects remain under their own license.",8,0,245,293,34,17,3,139,2,10,1769,7,19,2603,3730,0,0,12,0,,

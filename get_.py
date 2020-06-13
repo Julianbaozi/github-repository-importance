@@ -44,9 +44,9 @@ def my_proxy(PROXY_HOST,PROXY_PORT):
     return webdriver.Firefox(options=options, firefox_profile=fp)
 
 def run(owner_repos):
-    columns = ['name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork',
-               'commits', 'branches', 'releases', 'contributors', 'projects', 'labels', 'milestones',
-               'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
+    columns = ['full_name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork',
+               'commits', 'branches', 'releases', 'contributors', 'license', 'description', 'website', 'topics', 'readme',
+               'labels', 'milestones', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
                'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent',
                'age', 'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
                'dependent_repositories', 'dependent_packages', 'repositories', 'people', 'followers', 'info']
@@ -102,10 +102,9 @@ def run(owner_repos):
 
     total_time_min = (datetime.datetime.now() - app_init).total_seconds() / 60
     print("Finished in %.2f min" % total_time_min)
-    print("Failed: ", failed)
 
 if __name__ == '__main__':
-    with open('failed.txt') as file:
+    with open('owner_repos.txt') as file:
         owner_repos = file.read().splitlines()
-    run(owner_repos=owner_repos[:])
+    run(owner_repos[:10])
 

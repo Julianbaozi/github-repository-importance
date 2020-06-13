@@ -60,7 +60,7 @@ class FeatureGetter:
         self.start_date = (datetime.datetime.now() - datetime.timedelta(days=TIME_DELTA)).isoformat()[:10]
         self.browser = browser
         self.proxies = {"http": "http://" + proxy}
-        self.result = {'name': owner_repo}
+        self.result = {'full_name': owner_repo}
 
     def __call__(self):
         self.get_features()
@@ -73,11 +73,11 @@ class FeatureGetter:
     def _get_complex_item(soup_list, index, content_index=0):
         return int(re.findall('[0-9,]+', soup_list[index].contents[content_index].contents[0])[0].replace(',', ''))
 
-    def _get_elements(self, conditions, by, target, custom=None):
-        elements = None
+    def _get_elements(self, conditions, by, target, custom=None, wait=10):
+        elements = []
         for i in range(2):
                 try:
-                        elements = WebDriverWait(self.browser, 10).until(
+                        elements = WebDriverWait(self.browser, wait).until(
                                 conditions((by, target)) if not custom else conditions((by, target), custom)
                             )
                         break
@@ -109,15 +109,70 @@ class FeatureGetter:
 
     def _get_code(self):
         endpoint = ''
+        self._get_page_by_browser(endpoint)
+
+        self._get_summary()
+        self._get_description()
+        self._get_website()
+        self._get_topics()
+        self._get_readme()
+
+    def _get_summary(self):
         conditions = text_has_numbers
         by = By.CSS_SELECTOR
         target = 'span.num.text-emphasized'
         custom = [0, 1, 3, 4]
         feature_names = ['commits', 'branches', 'releases', 'contributors']
 
-        self._get_page_by_browser(endpoint)
         elements = self._get_elements(conditions, by, target, custom)
         self._update_result(elements, custom, feature_names)
+        if len(elements) >= 6:
+            self.result['license'] = True
+        else:
+            self.result['license'] = False
+
+    def _get_description(self):
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'span[itemprop="about"]'
+
+        element = self._get_elements(conditions, by, target, wait=1)
+        if not element:
+            self.result['description'] = ''
+        else:
+            self.result['description'] = element.text
+
+    def _get_website(self):
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'span[itemprop="url"]>a'
+
+        element = self._get_elements(conditions, by, target, wait=1)
+        if not element:
+            self.result['website'] = ''
+        else:
+            self.result['website'] = element.text
+
+    def _get_topics(self):
+        conditions = EC.presence_of_all_elements_located
+        by = By.CSS_SELECTOR
+        target = 'a.topic-tag.topic-tag-link'
+
+        elements = self._get_elements(conditions, by, target, wait=1)
+        self.result['topics'] = len(elements)
+
+    def _get_readme(self):
+        self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/README.md')
+        
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'pre'
+        #element = self.browser.find_element((by, target))
+        element = self._get_elements(conditions, by, target)
+        if not element or element.text == '404: Not Found':
+            self.result['readme'] = ''
+        else:
+            self.result['readme'] = element.text
 
     def _get_all_issue_pr(self):
         self._get_label_milestone()
@@ -157,6 +212,11 @@ class FeatureGetter:
     def _get_insights(self):
         if self._get_age():
             self._get_recent_contributors()
+        else:
+            result['recent_contributors'] = 0
+            result['recent_commits'] = 0
+            result['recent_added'] = 0
+            result['recent_deleted'] = 0
         self._get_dependents()
 
     @staticmethod
@@ -243,7 +303,7 @@ class FeatureGetter:
             self.result['info'] = "Not Found"
             return
         if page['full_name'] != self.owner_repo:
-            self.result['info'] = self.owner_repo
+            self.result['info'] = page['full_name']
             self.owner_repo = page['full_name']
         self.result['size'] = page['size']
         self.result['stars'] = page['stargazers_count']
@@ -259,7 +319,7 @@ class FeatureGetter:
 
         self._get_page_by_browser(endpoint)
 
-        if self.result['owner_type'] == 'Organization':
+        if self.result['owner_type'] == 'Organization':   
             custom = [0]
             target = 'a.pagehead-tabs-item>span.js-profile-repository-count'
             elements = self._get_elements(conditions, by, target, custom)
@@ -274,7 +334,7 @@ class FeatureGetter:
                              )
                 self._update_result(elements, custom, ['people'])
             except:
-                pass
+                self.result['people'] = 0
         else:
             target = 'span.Counter'
             custom = [0, 3]
