@@ -172,7 +172,7 @@ class FeatureGetter:
         if not element or element.text == '404: Not Found':
             self.result['readme'] = ''
         else:
-            self.result['readme'] = element.text
+            self.result['readme'] = element.text.replace('\n', '\xfe')
 
     def _get_all_issue_pr(self):
         self._get_label_milestone()
