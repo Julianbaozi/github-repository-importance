@@ -112,10 +112,15 @@ class FeatureGetter:
         self._get_page_by_browser(endpoint)
 
         self._get_summary()
-        self._get_description()
-        self._get_website()
+       # self._get_description()
+       # self._get_website()
         self._get_topics()
-        self._get_readme()
+        age_link = self._get_age_link()
+        readme_name = self._get_readme_name()
+        if age_link:
+            self._get_age(age_link)
+        if readme_name:
+            self._get_readme(readme_name)
 
     def _get_summary(self):
         conditions = text_has_numbers
@@ -124,34 +129,37 @@ class FeatureGetter:
         custom = [0, 1, 3, 4]
         feature_names = ['commits', 'branches', 'releases', 'contributors']
 
-        elements = self._get_elements(conditions, by, target, custom)
+        elements = self._get_elements(conditions, by, target, custom, wait=5)
+        if not elements:
+            self.result['commits'] = 0
+            return
         self._update_result(elements, custom, feature_names)
-        if len(elements) >= 6:
-            self.result['license'] = True
-        else:
-            self.result['license'] = False
+   #     if len(elements) >= 6:
+   #         self.result['license'] = True
+   #     else:
+   #         self.result['license'] = False
 
-    def _get_description(self):
-        conditions = EC.presence_of_element_located
-        by = By.CSS_SELECTOR
-        target = 'span[itemprop="about"]'
+   # def _get_description(self):
+   #     conditions = EC.presence_of_element_located
+   #     by = By.CSS_SELECTOR
+   #     target = 'span[itemprop="about"]'
 
-        element = self._get_elements(conditions, by, target, wait=1)
-        if not element:
-            self.result['description'] = ''
-        else:
-            self.result['description'] = element.text
+   #     element = self._get_elements(conditions, by, target, wait=1)
+   #     if not element:
+   #         self.result['description'] = ''
+   #     else:
+   #         self.result['description'] = element.text
 
-    def _get_website(self):
-        conditions = EC.presence_of_element_located
-        by = By.CSS_SELECTOR
-        target = 'span[itemprop="url"]>a'
+   # def _get_website(self):
+   #     conditions = EC.presence_of_element_located
+   #     by = By.CSS_SELECTOR
+   #     target = 'span[itemprop="url"]>a'
 
-        element = self._get_elements(conditions, by, target, wait=1)
-        if not element:
-            self.result['website'] = ''
-        else:
-            self.result['website'] = element.text
+   #     element = self._get_elements(conditions, by, target, wait=1)
+   #     if not element:
+   #         self.result['website'] = ''
+   #     else:
+   #         self.result['website'] = element.text
 
     def _get_topics(self):
         conditions = EC.presence_of_all_elements_located
@@ -161,8 +169,19 @@ class FeatureGetter:
         elements = self._get_elements(conditions, by, target, wait=1)
         self.result['topics'] = len(elements)
 
-    def _get_readme(self):
-        self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/README.md')
+    def _get_readme_name(self):
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'h2.Box-title.pr-3'
+        element = self._get_elements(conditions, by, target, wait=1)
+        
+        if not element:
+            self.result['readme'] = ''
+            return
+        return element.text
+    
+    def _get_readme(self, readme):
+        self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/' + readme)
         
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
@@ -210,13 +229,7 @@ class FeatureGetter:
         self.result['closed_' + key] = self._get_item(soup_list, 1, 2)
 
     def _get_insights(self):
-        if self._get_age():
-            self._get_recent_contributors()
-        else:
-            self.result['recent_contributors'] = 0
-            self.result['recent_commits'] = 0
-            self.result['recent_added'] = 0
-            self.result['recent_deleted'] = 0
+        self._get_recent_contributors()
         self._get_dependents()
 
     @staticmethod
@@ -224,30 +237,52 @@ class FeatureGetter:
         days = (datetime.datetime.now() - parse(first_date)).days
         return days
 
-    def _get_age(self):
-        endpoint = '/graphs/contributors'
-        conditions = text_is_different
-        by = By.TAG_NAME
-        target = 'h2'
-        custom = 'Loading contributions…'
-
-        self._get_page_by_browser(endpoint)
-
-        elements = self._get_elements(conditions, by, target, custom)
-        if not elements:
-            conditions = EC.presence_of_element_located
-            by = By.CSS_SELECTOR
-            target = 'div.graph-empty msg mt-6'
-            try:
-                _ = WebDriverWait(self.browser, 1).until(conditions((by, target)))        
-                return False
-            except:
-                pass
+    def _get_age_link(self):
+        endpoint = ''
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'a.commit-tease-sha.mr-1'
         
-        else:
-            first_date = elements[0].text.split('–')[0]
-            self.result['age'] = self.age(first_date)
-            return True
+        element = self._get_elements(conditions, by, target, wait=0)
+        if not element:
+            return
+        endpoint = '/commits/' + self.default_branch
+        if self.result['commits'] >= 2:
+            endpoint += '?after=' + element.get_attribute('href').split('/')[-1] + '+' + str(self.result['commits']-2)
+        return endpoint
+
+    def _get_age(self, endpoint):
+        self._get_page_by_browser(endpoint)
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'div.commit-group-title'
+        
+        element = self._get_elements(conditions, by, target, wait=5)
+        first_date = element.text[11:]
+        self.result['age'] = self.age(first_date)
+      #  endpoint = '/graphs/contributors'
+      #  conditions = text_is_different
+      #  by = By.TAG_NAME
+      #  target = 'h2'
+      #  custom = 'Loading contributions…'
+
+      #  self._get_page_by_browser(endpoint)
+
+      #  elements = self._get_elements(conditions, by, target, custom)
+      #  if not elements:
+      #      conditions = EC.presence_of_element_located
+      #      by = By.CSS_SELECTOR
+      #      target = 'div.graph-empty msg mt-6'
+      #      try:
+      #          _ = WebDriverWait(self.browser, 1).until(conditions((by, target)))        
+      #          return False
+      #      except:
+      #          pass
+      #  
+      #  else:
+      #      first_date = elements[0].text.split('–')[0]
+      #      self.result['age'] = self.age(first_date)
+      #      return True
 
     def _get_recent_contributors(self):
         from_ = self.start_date
@@ -311,6 +346,25 @@ class FeatureGetter:
         self.result['forks'] = page['forks']
         self.result['owner_type'] = page['owner']['type']
         self.result['if_fork'] = page['fork']
+        self.result['description'] = page['description'] if page['description'] else ''
+        self.result['homepage'] = page['homepage'] if page['homepage'] else None
+        self.result['license'] = True if page['license'] else False
+        self.default_branch = page['default_branch']
+
+        #if self.result['size'] > 0:
+        #    return
+        url = self.BASE_API_URL + self.owner_repo + '/contents'
+        self.browser.get(url)
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+        page = json.loads(soup.find("body").text)
+        self.result['files'] = len(page)
+        if self.result['size'] == 0:
+            size = 0
+            for item in page:
+                size += item['size']
+            self.result['size'] = size
+
+
 
     def _get_owner(self):
         endpoint = '/..'
@@ -347,6 +401,8 @@ class FeatureGetter:
         if 'info' in self.result and self.result['info'] == "Not Found":
             return
         self._get_code()
+        if self.result['commits'] == 0:
+            return
         self._get_all_issue_pr()
         self._get_insights()
         self._get_owner()
