@@ -112,6 +112,8 @@ class FeatureGetter:
         self._get_page_by_browser(endpoint)
 
         self._get_summary()
+        if self.result['commits'] == 0:
+            return
        # self._get_description()
        # self._get_website()
         self._get_topics()
@@ -129,8 +131,8 @@ class FeatureGetter:
         custom = [0, 1, 3, 4]
         feature_names = ['commits', 'branches', 'releases', 'contributors']
 
-        elements = self._get_elements(conditions, by, target, custom, wait=5)
-        if not elements:
+        elements = self._get_elements(conditions, by, target, custom)
+        if not elements and self.browser.page_source.find('This repository is empty.') != -1:
             self.result['commits'] = 0
             return
         self._update_result(elements, custom, feature_names)
@@ -257,7 +259,7 @@ class FeatureGetter:
         by = By.CSS_SELECTOR
         target = 'div.commit-group-title'
         
-        element = self._get_elements(conditions, by, target, wait=5)
+        element = self._get_elements(conditions, by, target)
         first_date = element.text[11:]
         self.result['age'] = self.age(first_date)
       #  endpoint = '/graphs/contributors'
@@ -346,9 +348,11 @@ class FeatureGetter:
         self.result['forks'] = page['forks']
         self.result['owner_type'] = page['owner']['type']
         self.result['if_fork'] = page['fork']
-        self.result['description'] = page['description'] if page['description'] else ''
-        self.result['homepage'] = page['homepage'] if page['homepage'] else None
-        self.result['license'] = True if page['license'] else False
+        self.result['has_issues'] = page['has_issues']
+        self.result['description'] = page['description']
+        self.result['homepage'] = page['homepage']
+        self.result['license'] = page['license']
+        self.result['language'] = page['language'] 
         self.default_branch = page['default_branch']
 
         #if self.result['size'] > 0:
@@ -362,8 +366,21 @@ class FeatureGetter:
             size = 0
             for item in page:
                 size += item['size']
+
             self.result['size'] = size
 
+        formats = {}
+        for item in page:
+            if item['type'] == 'dir':
+                continue
+            name = item['name'].split('.')
+            if len(name) == 1 or (len(name) == 2 and name[0] == ''):
+                fmt = ''
+            else:
+                fmt = name[-1]
+            formats[fmt] = formats.get(fmt, 0) + 1
+
+        self.result['formats'] = formats
 
 
     def _get_owner(self):

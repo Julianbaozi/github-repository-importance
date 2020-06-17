@@ -45,10 +45,10 @@ def my_proxy(PROXY_HOST,PROXY_PORT):
 
 def run(owner_repos):
     columns = ['full_name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork', 'description', 'homepage', 'license', 'files',
-               'commits', 'branches', 'releases', 'contributors', 'topics', 
-               'labels', 'milestones', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
-               'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent',
-               'age', 'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
+               'language', 'formats', 'commits', 'branches', 'releases', 'contributors', 'topics','age', 
+               'has_issues', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
+               'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent', 'labels', 'milestones',
+               'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
                'dependent_repositories', 'dependent_packages', 'repositories', 'people', 'followers', 'info', 'readme']
 
     if IF_NEW:
@@ -62,9 +62,9 @@ def run(owner_repos):
     @ray.remote
     def process_repo(owner_repo):
         save_result_obj = query.save_result(result_path='result/', lock_path='lock/')
+        app_init0 = datetime.datetime.now()
         for _ in range(3):
             time.sleep(random.randint(0, 40))
-            app_init0 = datetime.datetime.now()
 
             switchIP()
             browser = my_proxy("127.0.0.1", 9050)
@@ -106,6 +106,6 @@ def run(owner_repos):
 if __name__ == '__main__':
     with open('owner_repos.txt') as file:
         owner_repos = file.read().splitlines()
-    #owner_repos = ['openbsd/src']
+    #owner_repos = ['Nikesh001/android_kernel_xiaomi_msm8937']
     run(owner_repos[:])
 
