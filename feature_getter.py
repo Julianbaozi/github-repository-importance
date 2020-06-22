@@ -6,12 +6,46 @@ import re
 
 import datetime
 from dateutil.parser import parse
+import urllib.parse
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+import json
 from conf import TIME_DELTA
+
+
+def get_numbers(text):
+    nums = re.findall('[0-9,]+', text)
+    return [int(num.replace(',', '')) for num in nums]
+
+
+class text_has_numbers(object):
+    def __init__(self, locator, indices):
+        self.locator = locator
+        self.indices = indices
+
+    def __call__(self, driver):
+        elements = driver.find_elements(*self.locator)
+        if len(elements) == 0:
+            return False
+        for i in self.indices:
+            if not get_numbers(elements[i].text):
+                return False
+        return elements
+
+
+class text_is_different:
+    def __init__(self, locator, text):
+        self.locator = locator
+        self.text = text
+
+    def __call__(self, driver):
+        elements = driver.find_elements(*self.locator)
+        if len(elements) == 0:
+            return False
+        actual_text = elements[0].text
+        return elements if actual_text != self.text else False
 
 
 class FeatureGetter:
@@ -29,6 +63,9 @@ class FeatureGetter:
         self.proxies = {"http": "http://" + proxy}
         self.result = {'name': owner_repo}
 
+    def __call__(self):
+        self.get_features()
+
     @staticmethod
     def _get_item(soup_list, index, content_index=0):
         return int(re.findall('[0-9,]+', soup_list[index].contents[content_index])[0].replace(',', ''))
@@ -37,23 +74,32 @@ class FeatureGetter:
     def _get_complex_item(soup_list, index, content_index=0):
         return int(re.findall('[0-9,]+', soup_list[index].contents[content_index].contents[0])[0].replace(',', ''))
 
+    def _get_elements(self, conditions, by, target, custom=None, wait=10):
+        elements = []
+        for i in range(2):
+                try:
+                        elements = WebDriverWait(self.browser, wait).until(
+                                conditions((by, target)) if not custom else conditions((by, target), custom)
+                            )
+                        break
+                except:
+                    #print('Loading timeout. URL: ' + self.browser.current_url, '. Tried ' + str(i + 1) + ' times.')
+                    pass
+        return elements
+
+    def _get_page_by_browser(self, endpoint):
+        url = self.BASE_URL + self.owner_repo + endpoint
+        self.browser.get(url)
+
+    def _update_result(self, elements, indices, feature_names):
+        for i in range(len(indices)):
+            self.result[feature_names[i]] = get_numbers(elements[indices[i]].text)[0]
+
     def _get_page(self, endpoint):
         url = self.BASE_URL + self.owner_repo + endpoint
 
         page = requests.get(url, proxies=self.proxies)
         soup = BeautifulSoup(page.content, 'html.parser')
-        return soup
-
-    def _get_page_by_browser(self, endpoint, conditions, locator, wait_for):
-        url = self.BASE_URL + self.owner_repo + endpoint
-        self.browser.get(url)
-        try:
-            WebDriverWait(self.browser, 20).until(
-                conditions((locator, wait_for))
-            )
-        except:
-            print('Loading timeout. URL: ' + url)
-        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
         return soup
 
     @staticmethod
@@ -63,21 +109,67 @@ class FeatureGetter:
         return soup_list
 
     def _get_code(self):
-        soup = self._get_page_by_browser('', conditions=EC.presence_of_element_located,
-                                         locator=By.CSS_SELECTOR,
-                                         wait_for='a[href="/' + self.owner_repo + '/graphs/contributors"]>span')
-        soup_list = self._get_element_from_page(soup, 'span', 'num text-emphasized')
+      	endpoint = ''
+        self._get_page_by_browser(endpoint)
 
-        self.result['commits'] = self._get_item(soup_list, 0)
-        self.result['branches'] = self._get_item(soup_list, 1)
-        self.result['releases'] = self._get_item(soup_list, 3)
-        self.result['contributors'] = self._get_item(soup_list, 4)
+        self._get_summary()
+        if self.result['commits'] == 0:
+            return
 
-        soup_list = self._get_element_from_page(soup, 'span', 'Counter')
+        self._get_topics()
+        age_link = self._get_age_link()
+        readme_name = self._get_readme_name()
+        if age_link:
+            self._get_age(age_link)
+        if readme_name:
+            self._get_readme(readme_name)
+
+    def _get_summary(self):
+        conditions = text_has_numbers
+        by = By.CSS_SELECTOR
+        target = 'span.num.text-emphasized'
+        custom = [0, 1, 3, 4]
+        feature_names = ['commits', 'branches', 'releases', 'contributors']
+
+        elements = self._get_elements(conditions, by, target, custom)
+        if not elements and self.browser.page_source.find('This repository is empty.') != -1:
+            self.result['commits'] = 0
+            return
+        self._update_result(elements, custom, feature_names)
+
+    def _get_topics(self):
+        conditions = EC.presence_of_all_elements_located
+        by = By.CSS_SELECTOR
+        target = 'a.topic-tag.topic-tag-link'
+
+        elements = self._get_elements(conditions, by, target, wait=1)
+        self.result['topics'] = len(elements)
+
+    def _get_readme_name(self):
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'h2.Box-title.pr-3'
+        element = self._get_elements(conditions, by, target, wait=1)
+
+        if not element:
+            self.result['readme'] = ''
+            return
+        return element.text
+
+    def _get_readme(self, readme):
         try:
-            self.result['projects'] = self._get_item(soup_list, 2)
+            self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/' + readme)
         except:
-            self.result['projects'] = 0
+            self.result['readme'] = ''
+            return
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'pre'
+        element = self._get_elements(conditions, by, target)
+        if not element or element.text == '404: Not Found':
+            self.result['readme'] = ''
+        else:
+            self.result['readme'] = element.text.replace('\n', '\xfe')
 
     def _get_all_issue_pr(self):
         self._get_label_milestone()
@@ -86,7 +178,9 @@ class FeatureGetter:
                 self._get_issue_pr(type_, recent)
 
     def _get_label_milestone(self):
-        soup = self._get_page('/issues')
+        self._get_page_by_browser('/issues')
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+
         soup_list = self._get_element_from_page(soup, 'span', 'Counter d-none d-md-inline')
 
         self.result['labels'] = self._get_item(soup_list, 0)
@@ -102,14 +196,17 @@ class FeatureGetter:
         if recent:
             endpoint += 'created%3A>%3D' + self.start_date + '+'
             key += '_recent'
-        soup = self._get_page(endpoint)
+        self._get_page_by_browser(endpoint)
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+
+        if (self.browser.title.find('Pull') != -1 and type_ == 'issue') or (self.browser.title.find('Issue') != -1 and type_ == 'pr'):
+            return
         soup_list = self._get_element_from_page(soup, 'a', 'btn-link')
 
         self.result['open_' + key] = self._get_item(soup_list, 0, 2)
         self.result['closed_' + key] = self._get_item(soup_list, 1, 2)
 
     def _get_insights(self):
-        self._get_age()
         self._get_recent_contributors()
         self._get_dependents()
 
@@ -118,34 +215,61 @@ class FeatureGetter:
         days = (datetime.datetime.now() - parse(first_date)).days
         return days
 
-    def _get_age(self):
-        soup = self._get_page_by_browser('/graphs/contributors', conditions=EC.presence_of_element_located,
-                                         locator=By.CSS_SELECTOR, wait_for="rect.overlay")
-        soup_list = self._get_element_from_page(soup, 'h2', 'Subhead-heading js-date-range')
-        first_date = soup_list[0].contents[0].split('–')[0]
+    def _get_age_link(self):
+        endpoint = ''
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'a.commit-tease-sha.mr-1'
 
+        element = self._get_elements(conditions, by, target, wait=0)
+        if not element:
+            return
+        endpoint = '/commits/' + urllib.parse.quote(self.default_branch)
+        if self.result['commits'] >= 2:
+            endpoint += '?after=' + element.get_attribute('href').split('/')[-1] + '+' + str(self.result['commits']-2)
+        return endpoint
+
+    def _get_age(self, endpoint):
+        self._get_page_by_browser(endpoint)
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'div.commit-group-title'
+
+        element = self._get_elements(conditions, by, target)
+        first_date = element.text[11:]
         self.result['age'] = self.age(first_date)
+        if not self.result['age']:
+            print('No age.')
+            raise
 
     def _get_recent_contributors(self):
         from_ = self.start_date
         to_ = datetime.datetime.today().isoformat()[:10]
         endpoint = '/graphs/contributors?from=' + from_ + '&to=' + to_ + '&type=c'
-        soup = self._get_page_by_browser(endpoint, conditions=EC.presence_of_element_located,
-                                         locator=By.CSS_SELECTOR, wait_for="rect.overlay")
-        soup_list = self._get_element_from_page(soup, 'span', 'cmeta')
+        conditions = text_is_different
+        by = By.TAG_NAME
+        target = 'h2'
+        custom = 'Loading contributions…'
+
+        self._get_page_by_browser(endpoint)
+        self._get_elements(conditions, by, target, custom)
+
+        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
+        find_tag = soup.find_all('span', class_='cmeta')
+        soup_list = list(find_tag)
 
         commits = []
         added = []
         deleted = []
         for i in range(len(soup_list)):
-            num_commits = self._get_complex_item(soup_list, i, 0)
-            num_added = self._get_complex_item(soup_list, i, 2)
-            num_deleted = self._get_complex_item(soup_list, i, 4)
-            if num_commits == 0:
-                break
-            commits.append(num_commits)
-            added.append(num_added)
-            deleted.append(num_deleted)
+             num_commits = self._get_complex_item(soup_list, i, 0)
+             num_added = self._get_complex_item(soup_list, i, 2)
+             num_deleted = self._get_complex_item(soup_list, i, 4)
+             if num_commits == 0:
+                 break
+             commits.append(num_commits)
+             added.append(num_added)
+             deleted.append(num_deleted)
 
         self.result['recent_contributors'] = len(commits)
         self.result['recent_commits'] = sum(commits)
@@ -153,47 +277,106 @@ class FeatureGetter:
         self.result['recent_deleted'] = sum(deleted)
 
     def _get_dependents(self):
-        soup = self._get_page('/network/dependents')
-        soup_list = self._get_element_from_page(soup, 'a', 'btn-link')
-
-        self.result['dependent_repositories'] = self._get_item(soup_list, 0, 2)
-        self.result['dependent_packages'] = self._get_item(soup_list, 1, 2)
+        endpoint = '/network/dependents'
+        conditions = text_has_numbers
+        by = By.CSS_SELECTOR
+        target = 'a.btn-link'
+        custom = [0, 1]
+        feature_names = ['dependent_repositories', 'dependent_packages']
+        self._get_page_by_browser(endpoint)
+        elements = self._get_elements(conditions, by, target, custom)
+        self._update_result(elements, custom, feature_names)
 
     def _get_repo(self):
         url = self.BASE_API_URL + self.owner_repo
-        page = requests.get(url, proxies=self.proxies)
-        page = page.json()
+        self.browser.get(url)
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+        page = json.loads(soup.find("body").text)
+        if 'message' in page:
+            self.result['info'] =  page['message']
+            return
+
+        if page['full_name'] != self.owner_repo:
+            self.result['info'] = page['full_name']
+            self.owner_repo = page['full_name']
         self.result['size'] = page['size']
         self.result['stars'] = page['stargazers_count']
         self.result['watches'] = page['subscribers_count']
         self.result['forks'] = page['forks']
         self.result['owner_type'] = page['owner']['type']
         self.result['if_fork'] = page['fork']
+        self.result['has_issues'] = page['has_issues']
+        self.result['description'] = page['description']
+        self.result['homepage'] = page['homepage']
+        self.result['license'] = page['license']
+        self.result['language'] = page['language']
+        self.default_branch = page['default_branch']
+
+        url = self.BASE_API_URL + self.owner_repo + '/contents'
+        self.browser.get(url)
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+        page = json.loads(soup.find("body").text)
+        self.result['files'] = len(page)
+        if self.result['size'] == 0:
+            size = 0
+            for item in page:
+                size += item['size']
+
+            self.result['size'] = size
+
+	formats = {}
+        for item in page:
+            if item['type'] == 'dir':
+                continue
+            name = item['name'].split('.')
+            if len(name) == 1 or (len(name) == 2 and name[0] == ''):
+                fmt = ''
+            else:
+                fmt = name[-1]
+            formats[fmt] = formats.get(fmt, 0) + 1
+
+        self.result['formats'] = formats
+
+
 
     def _get_owner(self):
-        owner = self.owner_repo.split('/')[0]
-        url = self.BASE_URL + owner
+        endpoint = '/..'
+        conditions = text_has_numbers
+        by = By.CSS_SELECTOR
 
-        self.browser.get(url)
-        time.sleep(1)
-        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
+        self._get_page_by_browser(endpoint)
+
         if self.result['owner_type'] == 'Organization':
-            find_tag = soup.find_all('a', class_='pagehead-tabs-item')
-            soup_list = list(find_tag)
+            custom = [0]
+            target = 'a.pagehead-tabs-item>span.js-profile-repository-count'
+            elements = self._get_elements(conditions, by, target, custom)
+            self._update_result(elements, custom, ['repositories'])
 
-            self.result['repositories'] = self._get_complex_item(soup_list, 0, 3)
-            self.result['people'] = self._get_complex_item(soup_list, 2, 3)
+
+            target = 'a.pagehead-tabs-item>span.js-profile-member-count'
+
+            try:
+                elements = WebDriverWait(self.browser, 1).until(
+                             conditions((by, target)) if not custom else conditions((by, target), custom)
+                             )
+                self._update_result(elements, custom, ['people'])
+            except:
+                self.result['people'] = 0
         else:
-            find_tag = soup.find_all('span', class_='Counter hide-lg hide-md hide-sm')
-            soup_list = list(find_tag)
+            target = 'span.Counter'
+            custom = [0, 3]
+            feature_names = ['repositories', 'followers']
+            elements = self._get_elements(conditions, by, target, custom)
+            self._update_result(elements, custom, feature_names)
 
-            self.result['repositories'] = self._get_item(soup_list, 0)
-            self.result['followers'] = self._get_item(soup_list, 3)
 
     def get_features(self):
         self._get_repo()
-
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked"]:
+            return
         self._get_code()
+        if self.result['commits'] == 0:
+            return
         self._get_all_issue_pr()
         self._get_insights()
         self._get_owner()
