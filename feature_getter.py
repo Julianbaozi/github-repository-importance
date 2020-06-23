@@ -61,7 +61,7 @@ class FeatureGetter:
         self.start_date = (datetime.datetime.now() - datetime.timedelta(days=TIME_DELTA)).isoformat()[:10]
         self.browser = browser
         self.proxies = {"http": "http://" + proxy}
-        self.result = {'name': owner_repo}
+        self.result = {'full_name': owner_repo}
 
     def __call__(self):
         self.get_features()
@@ -109,8 +109,11 @@ class FeatureGetter:
         return soup_list
 
     def _get_code(self):
-      	endpoint = ''
-        self._get_page_by_browser(endpoint)
+        endpoint = ''
+        try:
+            self._get_page_by_browser(endpoint)
+        except:
+            pass
 
         self._get_summary()
         if self.result['commits'] == 0:
@@ -324,7 +327,7 @@ class FeatureGetter:
 
             self.result['size'] = size
 
-	formats = {}
+        formats = {}
         for item in page:
             if item['type'] == 'dir':
                 continue

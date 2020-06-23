@@ -4,10 +4,11 @@
 import datetime
 import pandas as pd
 
-import pre_select
+from csv import DictWriter
+from filelock import Timeout, FileLock
 
 from torrequest import TorRequest
-import feature_getter_
+import feature_getter
 import sys
 import traceback
 import ray
@@ -57,15 +58,6 @@ class save_result:
 		        # Add dictionary as wor in the csv
 		        dict_writer.writerow(dict_of_elem)
 
-	def append_dict_to_json(self, file_name, dict_of_elem):
-		lock = FileLock(self.lock_path + file_name + ".lock")
-		with lock:
-			with open(self.result_path + file_name, "r+") as file:
-				json_data = json.load(file)
-				json_data.update(dict_of_elem)
-				file.seek(0)
-				json.dump(json_data, file, indent=4)
-
 	def append_line(self, file_name, line):
 		lock = FileLock(self.lock_path + file_name + ".lock")
 		with lock:
@@ -82,7 +74,7 @@ def run(owner_repos):
 
     if IF_NEW:
         df = pd.DataFrame(columns=columns)
-        df.to_csv('result/data12.csv', index=False)
+        df.to_csv('result/data3.csv', index=False)
         with open('result/failed.txt', 'w') as f:
             f.write('')
 
@@ -105,12 +97,12 @@ def run(owner_repos):
                 browser = my_proxy("127.0.0.1", 9050)
                 browser.set_page_load_timeout(30)
 
-                getter = feature_getter_.FeatureGetter(owner_repo, browser, '')
+                getter = feature_getter.FeatureGetter(owner_repo, browser, '')
                 getter()
                 # print(getter.result)
                 if 'info' in getter.result and getter.result['info'] == "Not Found":
                     print("Not Found: " + owner_repo)
-                save_result_obj.append_dict_as_row('data12.csv', getter.result, columns)
+                save_result_obj.append_dict_as_row('data3.csv', getter.result, columns)
                 browser.close()
                 break
             except Exception as e:
@@ -141,7 +133,7 @@ def run(owner_repos):
     print("Finished in %.2f min" % total_time_min)
 
 if __name__ == '__main__':
-    with open('failed.txt') as file:
+    with open('owner_repos.txt') as file:
         owner_repos = file.read().splitlines()
     #owner_repos = ['Nikesh001/android_kernel_xiaomi_msm8937']
     run(owner_repos[:])
