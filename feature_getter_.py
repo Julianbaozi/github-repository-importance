@@ -6,6 +6,8 @@ import re
 
 import datetime
 from dateutil.parser import parse
+import urllib.parse
+
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -109,13 +111,15 @@ class FeatureGetter:
 
     def _get_code(self):
         endpoint = ''
-        self._get_page_by_browser(endpoint)
+        try:
+            self._get_page_by_browser(endpoint)
+        except:
+            pass
 
         self._get_summary()
-        if self.result['commits'] == 0:
+        if 'info' in self.result and self.result['info'] == 'Empty':
             return
-       # self._get_description()
-       # self._get_website()
+
         self._get_topics()
         age_link = self._get_age_link()
         readme_name = self._get_readme_name()
@@ -123,45 +127,64 @@ class FeatureGetter:
             self._get_age(age_link)
         if readme_name:
             self._get_readme(readme_name)
+        if self.result['contributors'] == 0:
+            self._get_contributors()
+
+    def _get_contributors(self):
+        endpoint = '/graphs/contributors'
+        conditions = text_is_different
+        by = By.TAG_NAME
+        target = 'h2'
+        custom = 'Loading contributions…'
+
+        self._get_page_by_browser(endpoint)
+        self._get_elements(conditions, by, target, custom)
+
+        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
+        find_tag = soup.find_all('span', class_='cmeta')
+        soup_list = list(find_tag)
+
+        commits = []
+        added = []
+        deleted = []
+        for i in range(len(soup_list)):
+             num_commits = self._get_complex_item(soup_list, i, 0)
+             num_added = self._get_complex_item(soup_list, i, 2)
+             num_deleted = self._get_complex_item(soup_list, i, 4)
+             if num_commits == 0:
+                 break
+             commits.append(num_commits)
+             added.append(num_added)
+             deleted.append(num_deleted)
+        self.result['contributors'] = len(commits)
+
 
     def _get_summary(self):
         conditions = text_has_numbers
         by = By.CSS_SELECTOR
-        target = 'span.num.text-emphasized'
-        custom = [0, 1, 3, 4]
-        feature_names = ['commits', 'branches', 'releases', 'contributors']
+        target = 'ul.list-style-none.d-flex strong'
+        custom = [0, 1, 2]
+        feature_names = ['commits', 'branches', 'releases']
 
         elements = self._get_elements(conditions, by, target, custom)
         if not elements and self.browser.page_source.find('This repository is empty.') != -1:
-            self.result['commits'] = 0
+            self.result['info'] = 'Empty'
+            return
+        
+        self._update_result(elements, custom, feature_names)
+
+        conditions = text_has_numbers
+        by = By.CSS_SELECTOR
+        target = 'div.BorderGrid-row h2 span'
+        custom = [0]
+        feature_names = ['contributors']
+
+        elements = self._get_elements(conditions, by, target, custom)
+        if not elements:
+            self.result['contributors'] = 0
             return
         self._update_result(elements, custom, feature_names)
-   #     if len(elements) >= 6:
-   #         self.result['license'] = True
-   #     else:
-   #         self.result['license'] = False
 
-   # def _get_description(self):
-   #     conditions = EC.presence_of_element_located
-   #     by = By.CSS_SELECTOR
-   #     target = 'span[itemprop="about"]'
-
-   #     element = self._get_elements(conditions, by, target, wait=1)
-   #     if not element:
-   #         self.result['description'] = ''
-   #     else:
-   #         self.result['description'] = element.text
-
-   # def _get_website(self):
-   #     conditions = EC.presence_of_element_located
-   #     by = By.CSS_SELECTOR
-   #     target = 'span[itemprop="url"]>a'
-
-   #     element = self._get_elements(conditions, by, target, wait=1)
-   #     if not element:
-   #         self.result['website'] = ''
-   #     else:
-   #         self.result['website'] = element.text
 
     def _get_topics(self):
         conditions = EC.presence_of_all_elements_located
@@ -176,19 +199,21 @@ class FeatureGetter:
         by = By.CSS_SELECTOR
         target = 'h2.Box-title.pr-3'
         element = self._get_elements(conditions, by, target, wait=1)
-        
+
         if not element:
             self.result['readme'] = ''
             return
         return element.text
-    
+
     def _get_readme(self, readme):
-        self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/' + readme)
-        
+        try:
+            self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/' + readme)
+        except:
+            self.result['readme'] = ''
+            return
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
         target = 'pre'
-        #element = self.browser.find_element((by, target))
         element = self._get_elements(conditions, by, target)
         if not element or element.text == '404: Not Found':
             self.result['readme'] = ''
@@ -243,11 +268,10 @@ class FeatureGetter:
         endpoint = ''
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
-        target = 'a.commit-tease-sha.mr-1'
-        
+        target = 'a.link-gray.text-mono'
+
         element = self._get_elements(conditions, by, target, wait=0)
-        if not element:
-            return
+        
         endpoint = '/commits/' + self.default_branch
         if self.result['commits'] >= 2:
             endpoint += '?after=' + element.get_attribute('href').split('/')[-1] + '+' + str(self.result['commits']-2)
@@ -258,33 +282,12 @@ class FeatureGetter:
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
         target = 'div.commit-group-title'
-        
+
         element = self._get_elements(conditions, by, target)
         first_date = element.text[11:]
         self.result['age'] = self.age(first_date)
-      #  endpoint = '/graphs/contributors'
-      #  conditions = text_is_different
-      #  by = By.TAG_NAME
-      #  target = 'h2'
-      #  custom = 'Loading contributions…'
-
-      #  self._get_page_by_browser(endpoint)
-
-      #  elements = self._get_elements(conditions, by, target, custom)
-      #  if not elements:
-      #      conditions = EC.presence_of_element_located
-      #      by = By.CSS_SELECTOR
-      #      target = 'div.graph-empty msg mt-6'
-      #      try:
-      #          _ = WebDriverWait(self.browser, 1).until(conditions((by, target)))        
-      #          return False
-      #      except:
-      #          pass
-      #  
-      #  else:
-      #      first_date = elements[0].text.split('–')[0]
-      #      self.result['age'] = self.age(first_date)
-      #      return True
+        if not self.result['age']:
+            raise Exception('No age.')
 
     def _get_recent_contributors(self):
         from_ = self.start_date
@@ -297,7 +300,7 @@ class FeatureGetter:
 
         self._get_page_by_browser(endpoint)
         self._get_elements(conditions, by, target, custom)
-        
+
         soup = BeautifulSoup(self.browser.page_source, 'html.parser')
         find_tag = soup.find_all('span', class_='cmeta')
         soup_list = list(find_tag)
@@ -336,51 +339,69 @@ class FeatureGetter:
         self.browser.get(url)
         soup = BeautifulSoup(self.browser.page_source, "html.parser")
         page = json.loads(soup.find("body").text)
-        if 'message' in page and page['message'] == "Not Found":
-            self.result['info'] = "Not Found"
+        if 'message' in page:
+            if 'API rate limit' in page['message']:
+                raise Exception('Rate limit.')
+            self.result['info'] =  page['message']
             return
+
         if page['full_name'] != self.owner_repo:
             self.result['info'] = page['full_name']
             self.owner_repo = page['full_name']
         self.result['size'] = page['size']
-        self.result['stars'] = page['stargazers_count']
-        self.result['watches'] = page['subscribers_count']
-        self.result['forks'] = page['forks']
-        self.result['owner_type'] = page['owner']['type']
-        self.result['if_fork'] = page['fork']
-        self.result['has_issues'] = page['has_issues']
-        self.result['description'] = page['description']
-        self.result['homepage'] = page['homepage']
-        self.result['license'] = page['license']
-        self.result['language'] = page['language'] 
-        self.default_branch = page['default_branch']
+       # self.result['stars'] = page['stargazers_count']
+       # self.result['watches'] = page['subscribers_count']
+       # self.result['forks'] = page['forks']
+       # self.result['owner_type'] = page['owner']['type']
+       # self.result['if_fork'] = page['fork']
+       # self.result['has_issues'] = page['has_issues']
+       # self.result['description'] = page['description']
+       # self.result['homepage'] = page['homepage']
+       # self.result['license'] = page['license']
+       # self.result['language'] = page['language']
+        self.result['mirror_url'] = page['mirror_url']
+        self.result['archived'] = page['archived']
+        self.result['disabled'] = page['disabled']
 
-        #if self.result['size'] > 0:
-        #    return
-        url = self.BASE_API_URL + self.owner_repo + '/contents'
+        self.default_branch = urllib.parse.quote(page['default_branch'])
+
+        url = self.BASE_API_URL + self.owner_repo + '/git/trees/' + self.default_branch + '?recursive=1'
         self.browser.get(url)
         soup = BeautifulSoup(self.browser.page_source, "html.parser")
         page = json.loads(soup.find("body").text)
-        self.result['files'] = len(page)
+        if 'message' in page:
+            self.result['info'] = 'Empty'
+            return
+        page = page['tree']
+        
         if self.result['size'] == 0:
             size = 0
             for item in page:
+                if item['type'] == 'tree':
+                    continue
                 size += item['size']
 
             self.result['size'] = size
 
+        files = 0
         formats = {}
+        i=-1
         for item in page:
-            if item['type'] == 'dir':
+            i+=1
+            if item['type'] == 'tree':
                 continue
-            name = item['name'].split('.')
-            if len(name) == 1 or (len(name) == 2 and name[0] == ''):
+            files += 1
+            name = item['path'].split('.')
+            #Do not include 'xx', '.xx', 'xx/.xx', 'xx.xx/xx'
+            #print(i, name)
+            if len(name) == 1 or (len(name) == 2 and name[0] == '') or (name[-2] and name[-2][-1] == '/') or '/' in name[-1]:
                 fmt = ''
             else:
                 fmt = name[-1]
             formats[fmt] = formats.get(fmt, 0) + 1
 
         self.result['formats'] = formats
+        self.result['files'] = files
 
 
     def _get_owner(self):
@@ -390,15 +411,15 @@ class FeatureGetter:
 
         self._get_page_by_browser(endpoint)
 
-        if self.result['owner_type'] == 'Organization':   
+        if self.result['owner_type'] == 'Organization':
             custom = [0]
-            target = 'a.pagehead-tabs-item>span.js-profile-repository-count'
+            target = 'span.js-profile-repository-count'
             elements = self._get_elements(conditions, by, target, custom)
             self._update_result(elements, custom, ['repositories'])
 
 
-            target = 'a.pagehead-tabs-item>span.js-profile-member-count'
-        
+            target = 'a.UnderlineNav-item>span.js-profile-member-count'
+
             try:
                 elements = WebDriverWait(self.browser, 1).until(
                              conditions((by, target)) if not custom else conditions((by, target), custom)
@@ -407,20 +428,24 @@ class FeatureGetter:
             except:
                 self.result['people'] = 0
         else:
-            target = 'span.Counter'
-            custom = [0, 3]
-            feature_names = ['repositories', 'followers']
+            target = 'span.text-bold'
+            custom = [0]
+            feature_names = ['followers']
             elements = self._get_elements(conditions, by, target, custom)
-            self._update_result(elements, custom, feature_names)
+            if not elements:
+                self.result['followers'] = 0
+            else:
+                self._update_result(elements, custom, feature_names)
+
 
     def get_features(self):
         self._get_repo()
-        if 'info' in self.result and self.result['info'] == "Not Found":
-            return
-        self._get_code()
-        if self.result['commits'] == 0:
-            return
-        self._get_all_issue_pr()
-        self._get_insights()
-        self._get_owner()
+        #if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+        #    return
+        #self._get_code()
+        #if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+        #    return
+        #self._get_all_issue_pr()
+        #self._get_insights()
+        #self._get_owner()
 
