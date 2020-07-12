@@ -125,10 +125,26 @@ class FeatureGetter:
         readme_name = self._get_readme_name()
         if age_link:
             self._get_age(age_link)
+        self._get_latest_commits()
         if readme_name:
             self._get_readme(readme_name)
         if self.result['contributors'] == 0:
             self._get_contributors()
+
+    def _get_latest_commits(self):
+        endpoint = '/commits/' + self.default_branch
+        self._get_page_by_browser(endpoint)
+        conditions = EC.presence_of_all_elements_located
+        by = By.CSS_SELECTOR
+        target = 'div.commit-group-title'
+
+        elements = self._get_elements(conditions, by, target)
+        latest_commits = []
+        for i in range(min(10, len(elements))):
+            element = elements[i]
+            commit_date = element.text[11:]
+            latest_commits.append(self.age(commit_date))
+        self.result['latest_commits'] = latest_commits
 
     def _get_contributors(self):
         endpoint = '/graphs/contributors'
@@ -299,8 +315,11 @@ class FeatureGetter:
         custom = 'Loading contributions…'
 
         self._get_page_by_browser(endpoint)
-        self._get_elements(conditions, by, target, custom)
-
+        elements = self._get_elements(conditions, by, target, custom, wait=20)
+        if not elements:
+            #raise Exception("Failed to load contributors.")
+            print('Failed to load contributors.')
+            pass
         soup = BeautifulSoup(self.browser.page_source, 'html.parser')
         find_tag = soup.find_all('span', class_='cmeta')
         soup_list = list(find_tag)
@@ -349,16 +368,16 @@ class FeatureGetter:
             self.result['info'] = page['full_name']
             self.owner_repo = page['full_name']
         self.result['size'] = page['size']
-       # self.result['stars'] = page['stargazers_count']
-       # self.result['watches'] = page['subscribers_count']
-       # self.result['forks'] = page['forks']
-       # self.result['owner_type'] = page['owner']['type']
-       # self.result['if_fork'] = page['fork']
-       # self.result['has_issues'] = page['has_issues']
-       # self.result['description'] = page['description']
-       # self.result['homepage'] = page['homepage']
-       # self.result['license'] = page['license']
-       # self.result['language'] = page['language']
+        self.result['stars'] = page['stargazers_count']
+        self.result['watches'] = page['subscribers_count']
+        self.result['forks'] = page['forks']
+        self.result['owner_type'] = page['owner']['type']
+        self.result['if_fork'] = page['fork']
+        self.result['has_issues'] = page['has_issues']
+        self.result['description'] = page['description']
+        self.result['homepage'] = page['homepage']
+        self.result['license'] = page['license']
+        self.result['language'] = page['language']
         self.result['mirror_url'] = page['mirror_url']
         self.result['archived'] = page['archived']
         self.result['disabled'] = page['disabled']
@@ -398,6 +417,7 @@ class FeatureGetter:
                 fmt = ''
             else:
                 fmt = name[-1]
+                fmt = fmt.lower()
             formats[fmt] = formats.get(fmt, 0) + 1
 
         self.result['formats'] = formats
@@ -440,12 +460,12 @@ class FeatureGetter:
 
     def get_features(self):
         self._get_repo()
-        #if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
-        #    return
-        #self._get_code()
-        #if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
-        #    return
-        #self._get_all_issue_pr()
-        #self._get_insights()
-        #self._get_owner()
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+            return
+        self._get_code()
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+            return
+        self._get_all_issue_pr()
+        self._get_insights()
+        self._get_owner()
 
