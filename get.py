@@ -8,7 +8,7 @@ from csv import DictWriter
 from filelock import Timeout, FileLock
 
 from torrequest import TorRequest
-import feature_getter
+import feature_getter_
 import sys
 import traceback
 import ray
@@ -65,24 +65,31 @@ class save_result:
 				file.write(line + '\n')
 
 def run(owner_repos):
-    columns = ['full_name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork', 'description', 'homepage', 'license', 'files',
-               'language', 'formats', 'commits', 'branches', 'releases', 'contributors', 'topics','age',
-               'has_issues', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
-               'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent', 'labels', 'milestones',
-               'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
-               'dependent_repositories', 'dependent_packages', 'repositories', 'people', 'followers', 'info', 'readme']
+    columns = \
+    ['full_name', 'mirror_url', 'archived', 'disabled', 'if_fork', 'size', 'files', 'stars', 'watches', 'forks', 
+            'recent_commits', 'recent_added', 'recent_deleted', 'recent_contributors', 'latest_commits',
+       'owner_type', 'description', 'formats', 'homepage', 'license', 'language', 'commits', 'branches',
+       'releases', 'contributors', 'topics', 'age', 'has_issues',
+       'open_issues', 'closed_issues', 'open_issues_recent',
+       'closed_issues_recent', 'open_prs', 'closed_prs', 'open_prs_recent',
+       'closed_prs_recent', 'labels', 'milestones', 
+       'dependent_repositories', 'dependent_packages', 'repositories',
+       'people', 'followers', 'readme', 'info'] 
 
+    result_path = 'result/'
+    result_file = 'new_40000_failed2.csv'
+    failed_file = 'failed.txt'
     if IF_NEW:
         df = pd.DataFrame(columns=columns)
-        df.to_csv('result/data3.csv', index=False)
-        with open('result/failed.txt', 'w') as f:
+        df.to_csv(result_path + result_file, index=False)
+        with open(result_path + failed_file, 'w') as f:
             f.write('')
 
     # ray.init(address='redis_address', redis_password=redis_password)
     ray.init(webui_host='0.0.0.0')
     @ray.remote
     def process_repo(owner_repo, wait=0):
-        save_result_obj = save_result(result_path='result/', lock_path='lock/')
+        save_result_obj = save_result(result_path=result_path, lock_path='lock/')
 
         #print("Let's wait %d"% (wait))
         time.sleep(wait)
@@ -97,12 +104,9 @@ def run(owner_repos):
                 browser = my_proxy("127.0.0.1", 9050)
                 browser.set_page_load_timeout(30)
 
-                getter = feature_getter.FeatureGetter(owner_repo, browser, '')
+                getter = feature_getter_.FeatureGetter(owner_repo, browser, '')
                 getter()
-                # print(getter.result)
-                if 'info' in getter.result and getter.result['info'] == "Not Found":
-                    print("Not Found: " + owner_repo)
-                save_result_obj.append_dict_as_row('data3.csv', getter.result, columns)
+                save_result_obj.append_dict_as_row(result_file, getter.result, columns)
                 browser.close()
                 break
             except Exception as e:
@@ -112,10 +116,13 @@ def run(owner_repos):
                 else:
                     print(e)
                 print(owner_repo + ' not finished. Retrying...')
-                browser.close()
+                try:
+                    browser.close()
+                except:
+                    pass
         else:
             print('Failed: ' + owner_repo)
-            save_result_obj.append_line('failed.txt', owner_repo)
+            save_result_obj.append_line(failed_file, owner_repo)
 
         app_init1 = datetime.datetime.now()
         total_time_min = (app_init1 - app_init0).total_seconds() / 60
@@ -123,7 +130,7 @@ def run(owner_repos):
 
     app_init = datetime.datetime.now()
     x = []
-    for i in range(8):
+    for i in range(min(8, len(owner_repos))):
         x.append(process_repo.remote(owner_repos[i], 10 * i))
     for i in range(8, len(owner_repos)):
         x.append(process_repo.remote(owner_repos[i]))
@@ -133,8 +140,8 @@ def run(owner_repos):
     print("Finished in %.2f min" % total_time_min)
 
 if __name__ == '__main__':
-    with open('owner_repos.txt') as file:
+    with open('failed.txt') as file:
         owner_repos = file.read().splitlines()
-    #owner_repos = ['Nikesh001/android_kernel_xiaomi_msm8937']
+    #owner_repos = ['git/git']
     run(owner_repos[:])
 

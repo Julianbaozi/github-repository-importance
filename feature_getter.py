@@ -126,19 +126,64 @@ class FeatureGetter:
             self._get_age(age_link)
         if readme_name:
             self._get_readme(readme_name)
+        if self.result['contributors'] == 0:
+            self._get_contributors()
+
+    def _get_contributors(self):
+        endpoint = '/graphs/contributors'
+        conditions = text_is_different
+        by = By.TAG_NAME
+        target = 'h2'
+        custom = 'Loading contributions…'
+
+        self._get_page_by_browser(endpoint)
+        self._get_elements(conditions, by, target, custom)
+
+        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
+        find_tag = soup.find_all('span', class_='cmeta')
+        soup_list = list(find_tag)
+
+        commits = []
+        added = []
+        deleted = []
+        for i in range(len(soup_list)):
+             num_commits = self._get_complex_item(soup_list, i, 0)
+             num_added = self._get_complex_item(soup_list, i, 2)
+             num_deleted = self._get_complex_item(soup_list, i, 4)
+             if num_commits == 0:
+                 break
+             commits.append(num_commits)
+             added.append(num_added)
+             deleted.append(num_deleted)
+        self.result['contributors'] = len(commits)
+
 
     def _get_summary(self):
         conditions = text_has_numbers
         by = By.CSS_SELECTOR
-        target = 'span.num.text-emphasized'
-        custom = [0, 1, 3, 4]
-        feature_names = ['commits', 'branches', 'releases', 'contributors']
+        target = 'ul.list-style-none.d-flex strong'
+        custom = [0, 1, 2]
+        feature_names = ['commits', 'branches', 'releases']
 
         elements = self._get_elements(conditions, by, target, custom)
         if not elements and self.browser.page_source.find('This repository is empty.') != -1:
             self.result['commits'] = 0
             return
+        
         self._update_result(elements, custom, feature_names)
+
+        conditions = text_has_numbers
+        by = By.CSS_SELECTOR
+        target = 'div.BorderGrid-row h2 span'
+        custom = [0]
+        feature_names = ['contributors']
+
+        elements = self._get_elements(conditions, by, target, custom)
+        if not elements:
+            self.result['contributors'] = 0
+            return
+        self._update_result(elements, custom, feature_names)
+
 
     def _get_topics(self):
         conditions = EC.presence_of_all_elements_located
@@ -222,12 +267,11 @@ class FeatureGetter:
         endpoint = ''
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
-        target = 'a.commit-tease-sha.mr-1'
+        target = 'a.link-gray.text-mono'
 
         element = self._get_elements(conditions, by, target, wait=0)
-        if not element:
-            return
-        endpoint = '/commits/' + urllib.parse.quote(self.default_branch)
+        
+        endpoint = '/commits/' + self.default_branch
         if self.result['commits'] >= 2:
             endpoint += '?after=' + element.get_attribute('href').split('/')[-1] + '+' + str(self.result['commits']-2)
         return endpoint
@@ -313,25 +357,31 @@ class FeatureGetter:
         self.result['homepage'] = page['homepage']
         self.result['license'] = page['license']
         self.result['language'] = page['language']
-        self.default_branch = page['default_branch']
+        self.result['mirror_url'] = page['mirror_url']
+        self.result['archived'] = page['archived']
+        self.result['disabled'] = page['disabled']
 
-        url = self.BASE_API_URL + self.owner_repo + '/contents'
+        self.default_branch = urllib.parse.quote(page['default_branch'])
+
+        url = self.BASE_API_URL + self.owner_repo + 'git/trees/' + self.default_branch + '?recursive=1'
         self.browser.get(url)
         soup = BeautifulSoup(self.browser.page_source, "html.parser")
         page = json.loads(soup.find("body").text)
-        self.result['files'] = len(page)
+        
         if self.result['size'] == 0:
             size = 0
             for item in page:
                 size += item['size']
 
             self.result['size'] = size
-
+        
+        files = 0
         formats = {}
         for item in page:
-            if item['type'] == 'dir':
+            if item['type'] == 'tree':
                 continue
-            name = item['name'].split('.')
+            files += 1
+            name = item['path'].split('.')
             if len(name) == 1 or (len(name) == 2 and name[0] == ''):
                 fmt = ''
             else:
@@ -339,7 +389,7 @@ class FeatureGetter:
             formats[fmt] = formats.get(fmt, 0) + 1
 
         self.result['formats'] = formats
-
+        self.result['files'] = files
 
 
     def _get_owner(self):
@@ -351,12 +401,12 @@ class FeatureGetter:
 
         if self.result['owner_type'] == 'Organization':
             custom = [0]
-            target = 'a.pagehead-tabs-item>span.js-profile-repository-count'
+            target = 'span.js-profile-repository-count'
             elements = self._get_elements(conditions, by, target, custom)
             self._update_result(elements, custom, ['repositories'])
 
 
-            target = 'a.pagehead-tabs-item>span.js-profile-member-count'
+            target = 'a.UnderlineNav-item>span.js-profile-member-count'
 
             try:
                 elements = WebDriverWait(self.browser, 1).until(
@@ -366,11 +416,14 @@ class FeatureGetter:
             except:
                 self.result['people'] = 0
         else:
-            target = 'span.Counter'
-            custom = [0, 3]
-            feature_names = ['repositories', 'followers']
+            target = 'span.text-bold'
+            custom = [0]
+            feature_names = ['followers']
             elements = self._get_elements(conditions, by, target, custom)
-            self._update_result(elements, custom, feature_names)
+            if not elements:
+                self.result['followers'] = 0
+            else:
+                self._update_result(elements, custom, feature_names)
 
 
     def get_features(self):

@@ -4,8 +4,8 @@
 import datetime
 import pandas as pd
 
-import query
-import pre_select
+from csv import DictWriter
+from filelock import Timeout, FileLock
 
 from torrequest import TorRequest
 import feature_getter_
@@ -43,9 +43,30 @@ def my_proxy(PROXY_HOST,PROXY_PORT):
     #options.log.level = "trace"
     return webdriver.Firefox(options=options, firefox_profile=fp)
 
+class save_result:
+	def __init__(self, result_path, lock_path):
+		self.result_path = result_path
+		self.lock_path = lock_path
+
+	def append_dict_as_row(self, file_name, dict_of_elem, field_names):
+	    # Open file in append mode
+		lock = FileLock(self.lock_path + file_name + ".lock")
+		with lock:
+		    with open(self.result_path +  file_name, 'a+', newline='') as write_obj:
+		        # Create a writer object from csv module
+		        dict_writer = DictWriter(write_obj, fieldnames=field_names)
+		        # Add dictionary as wor in the csv
+		        dict_writer.writerow(dict_of_elem)
+
+	def append_line(self, file_name, line):
+		lock = FileLock(self.lock_path + file_name + ".lock")
+		with lock:
+			with open(self.result_path + file_name, "a") as file:
+				file.write(line + '\n')
+
 def run(owner_repos):
-    columns = ['full_name', 'size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork', 'description', 'homepage', 'license', 'files',
-               'language', 'formats', 'commits', 'branches', 'releases', 'contributors', 'topics','age', 
+    columns = ['full_name', 'mirror_url', 'archived', 'disabled'] + ['size', 'stars', 'watches', 'forks', 'owner_type', 'if_fork', 'description', 'homepage', 'license', 'files',
+               'language', 'formats', 'commits', 'branches', 'releases', 'contributors', 'topics','age',
                'has_issues', 'open_issues', 'closed_issues', 'open_issues_recent', 'closed_issues_recent',
                'open_prs', 'closed_prs', 'open_prs_recent', 'closed_prs_recent', 'labels', 'milestones',
                'recent_contributors', 'recent_commits', 'recent_added', 'recent_deleted',
@@ -53,29 +74,36 @@ def run(owner_repos):
 
     if IF_NEW:
         df = pd.DataFrame(columns=columns)
-        df.to_csv('result/data2.csv', index=False)
+        df.to_csv('result/data0_.csv', index=False)
         with open('result/failed.txt', 'w') as f:
             f.write('')
 
     # ray.init(address='redis_address', redis_password=redis_password)
-    ray.init()
+    ray.init(webui_host='0.0.0.0')
     @ray.remote
-    def process_repo(owner_repo):
-        save_result_obj = query.save_result(result_path='result/', lock_path='lock/')
+    def process_repo(owner_repo, wait=0):
+        save_result_obj = save_result(result_path='result/', lock_path='lock/')
+
+        #print("Let's wait %d"% (wait))
+        time.sleep(wait)
+        #time.sleep(random.randint(0, 30))
         app_init0 = datetime.datetime.now()
         for _ in range(3):
-            time.sleep(random.randint(0, 40))
+            #if flag[0] == 0:
+            #    time.sleep(random.randint(0, 30))
 
-            switchIP()
-            browser = my_proxy("127.0.0.1", 9050)
             try:
+                switchIP()
+                browser = my_proxy("127.0.0.1", 9050)
+                browser.set_page_load_timeout(30)
+
                 getter = feature_getter_.FeatureGetter(owner_repo, browser, '')
                 getter()
-                # print(getter.result)
-                if 'info' in getter.result and getter.result['info'] == "Not Found":
-                    print("Not Found: " + owner_repo)
-                save_result_obj.append_dict_as_row('data2.csv', getter.result, columns)
-                browser.close()
+                save_result_obj.append_dict_as_row('data0_.csv', getter.result, columns)
+                try:
+                    browser.close()
+                except:
+                    pass
                 break
             except Exception as e:
                 traceback.print_exc(file=sys.stdout)
@@ -84,7 +112,10 @@ def run(owner_repos):
                 else:
                     print(e)
                 print(owner_repo + ' not finished. Retrying...')
-                browser.close()
+                try:
+                    browser.close()
+                except:
+                    pass
         else:
             print('Failed: ' + owner_repo)
             save_result_obj.append_line('failed.txt', owner_repo)
@@ -95,8 +126,9 @@ def run(owner_repos):
 
     app_init = datetime.datetime.now()
     x = []
-    
-    for i in range(len(owner_repos)):
+    for i in range(min(8, len(owner_repos))):
+        x.append(process_repo.remote(owner_repos[i], 10 * i))
+    for i in range(8, len(owner_repos)):
         x.append(process_repo.remote(owner_repos[i]))
     ray.get(x)
 

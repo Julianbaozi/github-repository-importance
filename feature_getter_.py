@@ -386,7 +386,10 @@ class FeatureGetter:
 
         url = self.BASE_API_URL + self.owner_repo + '/git/trees/' + self.default_branch + '?recursive=1'
         self.browser.get(url)
+        print(url)
+
         soup = BeautifulSoup(self.browser.page_source, "html.parser")
+        print(soup.find("body").text)
         page = json.loads(soup.find("body").text)
         if 'message' in page:
             self.result['info'] = 'Empty'
