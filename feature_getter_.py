@@ -49,6 +49,22 @@ class text_is_different:
         return elements if actual_text != self.text else False
 
 
+class has_text(object):
+    def __init__(self, locator, text):
+        self.locator = locator
+        self.text = text
+
+    def __call__(self, driver):
+        elements = driver.find_elements(*self.locator)
+        if len(elements) == 0:
+            return False
+        result = []
+        for element in elements:
+            if self.text in element.text:
+                result.append(get_numbers(element.text)[0])
+        return result
+
+
 class FeatureGetter:
     """Get features for a repository.
 
@@ -122,12 +138,12 @@ class FeatureGetter:
 
         self._get_topics()
         age_link = self._get_age_link()
-        readme_name = self._get_readme_name()
+        #self.readme_name = self._get_readme_name()
         if age_link:
             self._get_age(age_link)
-        self._get_latest_commits()
-        if readme_name:
-            self._get_readme(readme_name)
+        #self._get_latest_commits()
+        #if self.readme_name:
+        #    self._get_readme(readme_name)
         if self.result['contributors'] == 0:
             self._get_contributors()
 
@@ -147,59 +163,68 @@ class FeatureGetter:
         self.result['latest_commits'] = latest_commits
 
     def _get_contributors(self):
-        endpoint = '/graphs/contributors'
-        conditions = text_is_different
-        by = By.TAG_NAME
-        target = 'h2'
-        custom = 'Loading contributions…'
+       # endpoint = '/graphs/contributors'
+       # conditions = text_is_different
+       # by = By.TAG_NAME
+       # target = 'h2'
+       # custom = 'Loading contributions…'
 
-        self._get_page_by_browser(endpoint)
-        self._get_elements(conditions, by, target, custom)
+       # self._get_page_by_browser(endpoint)
+       # self._get_elements(conditions, by, target, custom)
 
-        soup = BeautifulSoup(self.browser.page_source, 'html.parser')
-        find_tag = soup.find_all('span', class_='cmeta')
-        soup_list = list(find_tag)
+       # soup = BeautifulSoup(self.browser.page_source, 'html.parser')
+       # find_tag = soup.find_all('span', class_='cmeta')
+       # soup_list = list(find_tag)
 
-        commits = []
-        added = []
-        deleted = []
-        for i in range(len(soup_list)):
-             num_commits = self._get_complex_item(soup_list, i, 0)
-             num_added = self._get_complex_item(soup_list, i, 2)
-             num_deleted = self._get_complex_item(soup_list, i, 4)
-             if num_commits == 0:
-                 break
-             commits.append(num_commits)
-             added.append(num_added)
-             deleted.append(num_deleted)
-        self.result['contributors'] = len(commits)
+       # commits = []
+       # added = []
+       # deleted = []
+       # for i in range(len(soup_list)):
+       #      num_commits = self._get_complex_item(soup_list, i, 0)
+       #      num_added = self._get_complex_item(soup_list, i, 2)
+       #      num_deleted = self._get_complex_item(soup_list, i, 4)
+       #      if num_commits == 0:
+       #          break
+       #      commits.append(num_commits)
+       #      added.append(num_added)
+       #      deleted.append(num_deleted)
+        url = self.BASE_API_URL + self.owner_repo + '/stats/contributors'
+
+        self.browser.get(url)
+        soup = BeautifulSoup(self.browser.page_source, "html.parser")
+        page = json.loads(soup.find("body").text)
+        self.result['contributors'] = len(page)
 
 
     def _get_summary(self):
         conditions = text_has_numbers
         by = By.CSS_SELECTOR
-        target = 'ul.list-style-none.d-flex strong'
-        custom = [0, 1, 2]
-        feature_names = ['commits', 'branches', 'releases']
-
+        target = 'span.d-none>strong'
+        custom = [0]
+        feature_names = ['commits']
+       
         elements = self._get_elements(conditions, by, target, custom)
         if not elements and self.browser.page_source.find('This repository is empty.') != -1:
             self.result['info'] = 'Empty'
             return
-        
         self._update_result(elements, custom, feature_names)
 
-        conditions = text_has_numbers
-        by = By.CSS_SELECTOR
-        target = 'div.BorderGrid-row h2 span'
-        custom = [0]
+        target = 'div.flex-self-center>a>strong'
+        custom = [0, 1]
+        feature_names = ['branches', 'releases']
+        elements = self._get_elements(conditions, by, target, custom)
+        self._update_result(elements, custom, feature_names)
+        
+        conditions = has_text
+        target = 'div.BorderGrid-row h2 a'
+        custom = 'Contributors'
         feature_names = ['contributors']
 
         elements = self._get_elements(conditions, by, target, custom)
         if not elements:
             self.result['contributors'] = 0
             return
-        self._update_result(elements, custom, feature_names)
+        self.result['contributors'] = elements[0]
 
 
     def _get_topics(self):
@@ -219,22 +244,7 @@ class FeatureGetter:
         if not element:
             self.result['readme'] = ''
             return
-        return element.text
-
-    def _get_readme(self, readme):
-        try:
-            self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/master/' + readme)
-        except:
-            self.result['readme'] = ''
-            return
-        conditions = EC.presence_of_element_located
-        by = By.CSS_SELECTOR
-        target = 'pre'
-        element = self._get_elements(conditions, by, target)
-        if not element or element.text == '404: Not Found':
-            self.result['readme'] = ''
-        else:
-            self.result['readme'] = element.text.replace('\n', '\xfe')
+        return element.text   
 
     def _get_all_issue_pr(self):
         self._get_label_milestone()
@@ -272,7 +282,7 @@ class FeatureGetter:
         self.result['closed_' + key] = self._get_item(soup_list, 1, 2)
 
     def _get_insights(self):
-        self._get_recent_contributors()
+        #self._get_recent_contributors()
         self._get_dependents()
 
     @staticmethod
@@ -297,7 +307,7 @@ class FeatureGetter:
         self._get_page_by_browser(endpoint)
         conditions = EC.presence_of_element_located
         by = By.CSS_SELECTOR
-        target = 'div.commit-group-title'
+        target = 'h2.text-normal'
 
         element = self._get_elements(conditions, by, target)
         first_date = element.text[11:]
@@ -353,14 +363,21 @@ class FeatureGetter:
         elements = self._get_elements(conditions, by, target, custom)
         self._update_result(elements, custom, feature_names)
 
-    def _get_repo(self):
-        url = self.BASE_API_URL + self.owner_repo
+    def _get_page_by_API(self, endpoint):
+        url = self.BASE_API_URL + self.owner_repo + endpoint
         self.browser.get(url)
         soup = BeautifulSoup(self.browser.page_source, "html.parser")
         page = json.loads(soup.find("body").text)
         if 'message' in page:
             if 'API rate limit' in page['message']:
                 raise Exception('Rate limit.')
+            
+        return page
+
+    def _get_repo(self):
+        endpoint = ''
+        page = self._get_page_by_API(endpoint)
+        if 'message' in page:
             self.result['info'] =  page['message']
             return
 
@@ -384,13 +401,14 @@ class FeatureGetter:
 
         self.default_branch = urllib.parse.quote(page['default_branch'])
 
-        url = self.BASE_API_URL + self.owner_repo + '/git/trees/' + self.default_branch + '?recursive=1'
-        self.browser.get(url)
-        print(url)
+    def _get_commits(self):
+        endpoint = '/stats/commit_activity'
+        page = self._get_page_by_API(endpoint)
+        self.result['recent_commits'] = page
 
-        soup = BeautifulSoup(self.browser.page_source, "html.parser")
-        print(soup.find("body").text)
-        page = json.loads(soup.find("body").text)
+    def _get_files(self):
+        endpoint = '/git/trees/' + self.default_branch + '?recursive=1'
+        page = self._get_page_by_API(endpoint)
         if 'message' in page:
             self.result['info'] = 'Empty'
             return
@@ -415,7 +433,6 @@ class FeatureGetter:
             files += 1
             name = item['path'].split('.')
             #Do not include 'xx', '.xx', 'xx/.xx', 'xx.xx/xx'
-            #print(i, name)
             if len(name) == 1 or (len(name) == 2 and name[0] == '') or (name[-2] and name[-2][-1] == '/') or '/' in name[-1]:
                 fmt = ''
             else:
@@ -426,6 +443,45 @@ class FeatureGetter:
         self.result['formats'] = formats
         self.result['files'] = files
 
+    def _get_readme(self):
+        endpoint = '/readme'
+        page = self._get_page_by_API(endpoint)
+        if 'message' in page:
+            return
+        self.result['readme_name'] = page['name']
+        self.result['readme_size'] = page['size']
+        self._get_readme_file()
+
+    def _get_readme_file(self):
+        try:
+            self.browser.get('https://raw.githubusercontent.com/' + self.owner_repo + '/' + self.default_branch + '/' + self.result['readme_name'])
+        except:
+            self.result['readme'] = ''
+            return
+        conditions = EC.presence_of_element_located
+        by = By.CSS_SELECTOR
+        target = 'pre'
+        element = self._get_elements(conditions, by, target)
+        if not element or element.text == '404: Not Found':
+            self.result['readme'] = ''
+        else:
+            self.result['readme'] = element.text.replace('\n', '\xfe')
+
+    def _get_community(self):
+        endpoint = '/community/profile'
+        page = self._get_page_by_API(endpoint)
+        self.result['health_percentage'] = page['health_percentage']
+       
+    def _get_API(self):
+        self._get_repo()
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+            return
+        self._get_commits()
+        self._get_files()
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+            return
+        self._get_readme()
+        self._get_community()
 
     def _get_owner(self):
         endpoint = '/..'
@@ -436,9 +492,9 @@ class FeatureGetter:
 
         if self.result['owner_type'] == 'Organization':
             custom = [0]
-            target = 'span.js-profile-repository-count'
-            elements = self._get_elements(conditions, by, target, custom)
-            self._update_result(elements, custom, ['repositories'])
+            #target = 'span.js-profile-repository-count'
+            #elements = self._get_elements(conditions, by, target, custom)
+            #self._update_result(elements, custom, ['repositories'])
 
 
             target = 'a.UnderlineNav-item>span.js-profile-member-count'
@@ -462,7 +518,7 @@ class FeatureGetter:
 
 
     def get_features(self):
-        self._get_repo()
+        self._get_API()
         if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
             return
         self._get_code()
