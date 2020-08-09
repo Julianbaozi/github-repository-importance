@@ -481,6 +481,8 @@ class FeatureGetter:
         if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
             return
         self._get_commits()
+        if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
+            return
         self._get_files()
         if 'info' in self.result and self.result['info'] in ["Not Found", "Repository access blocked", "Empty"]:
             return
