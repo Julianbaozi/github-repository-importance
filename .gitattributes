@@ -1,0 +1,10 @@
+result/new_40000.csv filter=lfs diff=lfs merge=lfs -text
+result/new_40000_failed1.csv filter=lfs diff=lfs merge=lfs -text
+result/X_y.csv filter=lfs diff=lfs merge=lfs -text
+result/46346_45.csv filter=lfs diff=lfs merge=lfs -text
+result/data_rescrape.csv filter=lfs diff=lfs merge=lfs -text
+result/new_40000_failed0.csv filter=lfs diff=lfs merge=lfs -text
+result/new_40000_failed2.csv filter=lfs diff=lfs merge=lfs -text
+result/X.csv filter=lfs diff=lfs merge=lfs -text
+result/100000_0.csv filter=lfs diff=lfs merge=lfs -text
+result/100000_1.csv filter=lfs diff=lfs merge=lfs -text
